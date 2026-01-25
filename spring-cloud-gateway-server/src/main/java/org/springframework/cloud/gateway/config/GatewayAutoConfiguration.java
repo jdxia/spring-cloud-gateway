@@ -233,6 +233,9 @@ public class GatewayAutoConfiguration {
 		return new RouteLocatorBuilder(context);
 	}
 
+	/**
+	 * 重要的配置 {@link GatewayProperties}
+	 */
 	@Bean
 	@ConditionalOnMissingBean
 	public PropertiesRouteDefinitionLocator propertiesRouteDefinitionLocator(GatewayProperties properties) {
@@ -245,6 +248,9 @@ public class GatewayAutoConfiguration {
 		return new InMemoryRouteDefinitionRepository();
 	}
 
+	/**
+	 * 这个是加了 Primary 的
+	 */
 	@Bean
 	@Primary
 	public RouteDefinitionLocator routeDefinitionLocator(List<RouteDefinitionLocator> routeDefinitionLocators) {
@@ -258,6 +264,7 @@ public class GatewayAutoConfiguration {
 		return new ConfigurationService(beanFactory, conversionService, validator);
 	}
 
+
 	@Bean
 	public RouteLocator routeDefinitionRouteLocator(GatewayProperties properties,
 			List<GatewayFilterFactory> gatewayFilters, List<RoutePredicateFactory> predicates,
@@ -266,6 +273,10 @@ public class GatewayAutoConfiguration {
 				configurationService);
 	}
 
+	/**
+	 * 这个是加了 Primary 的
+	 * 这个方法参数里面的就是上面的 routeDefinitionRouteLocator
+	 */
 	@Bean
 	@Primary
 	@ConditionalOnMissingBean(name = "cachedCompositeRouteLocator")

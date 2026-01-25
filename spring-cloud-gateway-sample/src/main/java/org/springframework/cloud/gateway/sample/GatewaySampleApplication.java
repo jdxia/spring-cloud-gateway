@@ -42,17 +42,18 @@ import org.springframework.web.reactive.function.server.ServerResponse;
  */
 @SpringBootConfiguration
 @EnableAutoConfiguration
-@Import(AdditionalRoutes.class)
+//@Import(AdditionalRoutes.class)
 public class GatewaySampleApplication {
-
-	public static final String HELLO_FROM_FAKE_ACTUATOR_METRICS_GATEWAY_REQUESTS = "hello from fake /actuator/metrics/spring.cloud.gateway.requests";
-
-	@Value("${test.uri:http://httpbin.org:80}")
-	String uri;
 
 	public static void main(String[] args) {
 		SpringApplication.run(GatewaySampleApplication.class, args);
 	}
+
+	/**
+	public static final String HELLO_FROM_FAKE_ACTUATOR_METRICS_GATEWAY_REQUESTS = "hello from fake /actuator/metrics/spring.cloud.gateway.requests";
+
+	@Value("${test.uri:http://httpbin.org:80}")
+	String uri;
 
 	@Bean
 	public RouteLocator customRouteLocator(RouteLocatorBuilder builder) {
@@ -192,5 +193,7 @@ public class GatewaySampleApplication {
 		}
 
 	}
+*/
+
 
 }

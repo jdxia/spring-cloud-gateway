@@ -128,7 +128,9 @@ public class RouteDefinitionRouteLocator implements RouteLocator {
 	}
 
 	private Route convertToRoute(RouteDefinition routeDefinition) {
+		// 根据路由定义, 生成匹配器
 		AsyncPredicate<ServerWebExchange> predicate = combinePredicates(routeDefinition);
+		// 根据路由定义, 生成过滤器
 		List<GatewayFilter> gatewayFilters = getFilters(routeDefinition);
 
 		return Route.async(routeDefinition).asyncPredicate(predicate).replaceFilters(gatewayFilters).build();
