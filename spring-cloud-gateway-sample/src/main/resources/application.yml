@@ -32,9 +32,8 @@ spring:
     loadbalancer:
       health-check:
         interval: 3s
-        health-check:
-          user:
-            path: /actuator/health/readiness
+        path:
+          user: /actuator/health/readiness
       cache:
         enabled: true
         ttl: 2s
