@@ -24,5 +24,38 @@ spring:
 #      username: ${nacos.username}
 #      password: ${nacos.password}
       discovery:
+        # 默认就是 true，一般不要改（适合 k8s）
+        ephemeral: true
         server-addr: ${nacos.address}
         namespace: ${nacos.namespace}
+        group: DEFAULT_GROUP
+        cluster-name: DEFAULT
+        # metadata 可以放灰度信息 / 机房信息 / 版本号
+        metadata:
+          version: v1
+          # 引用环境变量
+          hostname: ${HOSTNAME:unknown}
+          # 心跳间隔：5s
+          preserved.heart.beat.interval: 5000
+          # 15s 不上报 -> unhealthy
+          preserved.heart.beat.timeout: 15000
+          # 30s 不上报 -> 剔除实例
+          preserved.ip.delete.timeout: 30000
+
+
+management:
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  health:
+    db:
+      enabled: false
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true
+  endpoints:
+    web:
+      exposure:
+        include: "health"

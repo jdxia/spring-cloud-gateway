@@ -29,6 +29,15 @@ spring:
       discovery:
         server-addr: ${nacos.address}
         namespace: ${nacos.namespace}
+    loadbalancer:
+      health-check:
+        interval: 3s
+        health-check:
+          user:
+            path: /actuator/health/readiness
+      cache:
+        enabled: true
+        ttl: 2s
     gateway.server.webflux:
       routes:
         # =====================================
@@ -48,7 +57,7 @@ spring:
           predicates:
             - Path=/user/**
           filters:
-            - StripPrefix=1
+            - StripPrefix=1  # 去掉url里面的1段进行转发
         # =====================================
         # http://127.0.0.1:8899/testSearch
         - id: hot_list
@@ -71,4 +80,8 @@ logging:
     reactor.ipc.netty: DEBUG
     reactor.netty: DEBUG
 
-management.endpoints.web.exposure.include: '*'
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
