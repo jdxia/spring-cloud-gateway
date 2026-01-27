@@ -21,26 +21,32 @@ spring:
     name: user
   cloud:
     nacos:
-#      username: ${nacos.username}
-#      password: ${nacos.password}
       discovery:
+        watch:
+          enabled: true  # 一般网关那边配就行这边不用配置
+        register-enabled: false  # 不注册
+        instance-enabled: true  # 我注册了，但我不接客（实例存在，但被标记为 disabled，通常不会被选）
         # 默认就是 true，一般不要改（适合 k8s）
         ephemeral: true
         server-addr: ${nacos.address}
         namespace: ${nacos.namespace}
-        group: DEFAULT_GROUP
+        group: http   # 和dubbo区分开来
         cluster-name: DEFAULT
+        fail-fast: true # 强依赖nacos失败就不启动
+        # 手动注册时必须显式指定
+        port: ${server.port}
+        service: ${spring.application.name}
+#        username: ${nacos.username}
+#        password: ${nacos.password}
+        heart-beat-interval: 5000
+        heart-beat-timeout: 15000
+        ip-delete-timeout: 30000
         # metadata 可以放灰度信息 / 机房信息 / 版本号
         metadata:
           version: v1
           # 引用环境变量
           hostname: ${HOSTNAME:unknown}
-          # 心跳间隔：5s
-          preserved.heart.beat.interval: 5000
-          # 15s 不上报 -> unhealthy
-          preserved.heart.beat.timeout: 15000
-          # 30s 不上报 -> 剔除实例
-          preserved.ip.delete.timeout: 30000
+          register.source: SPRING_CLOUD
 
 
 management:

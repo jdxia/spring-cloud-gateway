@@ -1,5 +1,7 @@
 package com.study;
 
+import com.study.nacos.NacosManualService;
+import jakarta.annotation.Resource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.SpringApplication;
@@ -16,15 +18,42 @@ import static org.springframework.web.servlet.function.RouterFunctions.route;
 @SpringBootApplication
 public class UserApplication {
 
+	@Resource
+	private NacosManualService nacosManualService;
+
 	private static final Logger log = LoggerFactory.getLogger(UserApplication.class);
 
 	@Bean
-	public RouterFunction<ServerResponse> user() {
+	public RouterFunction<ServerResponse> test() {
 		// http://127.0.0.1:8890/test 可以再开一个 http://127.0.0.1:8890/test
 		return route()
 				.GET("/test", request -> {
 					log.info("===========> get user success! time: {}", LocalDateTime.now());
 					return ServerResponse.status(HttpStatus.OK).body("get user success!");
+				})
+				.build();
+	}
+
+	@Bean
+	public RouterFunction<ServerResponse> testOnline() {
+		// http://127.0.0.1:8890/online
+		return route()
+				.GET("/online", request -> {
+					nacosManualService.online();
+					log.info("===========> online");
+					return ServerResponse.status(HttpStatus.OK).body("online!");
+				})
+				.build();
+	}
+
+	@Bean
+	public RouterFunction<ServerResponse> testOffline() {
+		// http://127.0.0.1:8890/offline
+		return route()
+				.GET("/offline", request -> {
+					nacosManualService.offline();
+					log.info("===========> offline");
+					return ServerResponse.status(HttpStatus.OK).body("offline!");
 				})
 				.build();
 	}

@@ -27,17 +27,47 @@ spring:
       #      username: ${nacos.username}
       #      password: ${nacos.password}
       discovery:
+#        watch-delay: 5000
+        watch:
+          enabled: true
         server-addr: ${nacos.address}
         namespace: ${nacos.namespace}
+        heart-beat-interval: 5000       # 心跳间隔
+        heart-beat-timeout: 15000       # 心跳超时
+        ip-delete-timeout: 30000
+        group: http
+        cluster-name: DEFAULT
+        fail-fast: true # 强依赖nacos失败就不启动
+        ephemeral: true
     loadbalancer:
+      nacos:
+        enabled: true  # 生产要看下  A cross-cluster call occurs
+      configurations: health-check  # 启用健康检查 ServiceInstanceListSupplier
       health-check:
-        interval: 3s
+        interval: 5s
+        initial-delay: 5s  # 首次检查延迟, 后面的服务注册到nacos上之后要立刻 健康检查能过
+        refetch-instances: true  # 关键：定期从注册中心重新获取实例
+        refetch-instances-interval: 3s  # 重新获取间隔
         path:
           user: /actuator/health/readiness
       cache:
         enabled: true
-        ttl: 2s
+        ttl: 5s
     gateway.server.webflux:
+#      default-filters:
+#        - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
+#        - RemoveRequestHeader=Cookie  # 根据需要移除敏感头
+      httpclient:
+        connect-timeout: 3000          # 连接超时，毫秒
+        response-timeout: 10s          # 响应超时
+        pool:
+          type: fixed                  # 固定连接池（生产推荐）
+          max-connections: 500         # 最大连接数
+          acquire-timeout: 5000        # 获取连接超时
+          max-idle-time: 20s           # 最大空闲时间
+          max-life-time: 60s           # 连接最大存活时间
+          eviction-interval: 30s       # 定期清理空闲连接
+          metrics: true                # 启用连接池指标
       routes:
         # =====================================
         # to run server
