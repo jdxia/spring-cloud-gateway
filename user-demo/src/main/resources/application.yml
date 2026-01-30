@@ -38,9 +38,12 @@ spring:
         service: ${spring.application.name}
 #        username: ${nacos.username}
 #        password: ${nacos.password}
-        heart-beat-interval: 5000
-        heart-beat-timeout: 15000
-        ip-delete-timeout: 30000
+        # 心跳间隔：5s
+        heartBeatInterval: 5000
+        # 15s 不上报 -> unhealthy
+        heartBeatTimeout: 15000
+        # 30s 不上报 -> 剔除实例
+        ipDeleteTimeout: 30000
         # metadata 可以放灰度信息 / 机房信息 / 版本号
         metadata:
           version: v1

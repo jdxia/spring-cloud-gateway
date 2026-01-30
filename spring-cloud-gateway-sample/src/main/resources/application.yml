@@ -30,30 +30,37 @@ spring:
 #        watch-delay: 5000
         watch:
           enabled: true
-        server-addr: ${nacos.address}
+        serverAddr: ${nacos.address}
         namespace: ${nacos.namespace}
-        heart-beat-interval: 5000       # 心跳间隔
-        heart-beat-timeout: 15000       # 心跳超时
-        ip-delete-timeout: 30000
+        # 心跳间隔：5s
+        heartBeatInterval: 5000
+        # 15s 不上报 -> unhealthy
+        heartBeatTimeout: 15000
+        # 30s 不上报 -> 剔除实例
+        ipDeleteTimeout: 30000
         group: http
         cluster-name: DEFAULT
         fail-fast: true # 强依赖nacos失败就不启动
         ephemeral: true
     loadbalancer:
       nacos:
-        enabled: true  # 生产要看下  A cross-cluster call occurs
+        enabled: true  # 生产要看下有没有这个, 如果有这个就代表跨集群了  A cross-cluster call occurs
       configurations: health-check  # 启用健康检查 ServiceInstanceListSupplier
       health-check:
         interval: 5s
-        initial-delay: 5s  # 首次检查延迟, 后面的服务注册到nacos上之后要立刻 健康检查能过
-        refetch-instances: true  # 关键：定期从注册中心重新获取实例
-        refetch-instances-interval: 3s  # 重新获取间隔
+        initialDelay: 5s  # 首次检查延迟, 后面的服务注册到nacos上之后要立刻 健康检查能过
+        refetchInstances: true  # 关键：定期从注册中心重新获取实例
+        refetchInstancesInterval: 3s  # 重新获取间隔
+        repeatHealthCheck: true  # 是否循环健康检查
+        updateResultsList: true # 是否根据检查结果实时更新负载均衡器的缓存列表
         path:
           user: /actuator/health/readiness
       cache:
         enabled: true
         ttl: 5s
+        capacity: 1024  # 默认是256 超过了就进行驱逐
     gateway.server.webflux:
+      routeFilterCacheEnabled: false # 关闭路由过滤器缓存, 这个如果要缓存要注意一下共享变量, 所有请求相关的数据都存储在 ServerWebExchange 的 attributes 中
 #      default-filters:
 #        - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
 #        - RemoveRequestHeader=Cookie  # 根据需要移除敏感头
@@ -69,11 +76,8 @@ spring:
           eviction-interval: 30s       # 定期清理空闲连接
           metrics: true                # 启用连接池指标
       routes:
-        # =====================================
-        # to run server
-        # $ wscat --listen 9000
-        # to run client
-        # $ wscat --connect ws://localhost:8080/echo
+        # to run server $ wscat --listen 9000
+        # to run client  $ wscat --connect ws://localhost:8080/echo
         - id: websocket_test
           uri: ws://localhost:9000
           order: 9000
@@ -86,7 +90,7 @@ spring:
           predicates:
             - Path=/user/**
           filters:
-            - StripPrefix=1  # 去掉url里面的1段进行转发
+            - StripPrefix=1  # 去掉url里面的第一段进行转发
         # =====================================
         # http://127.0.0.1:8899/testSearch
         - id: hot_list
@@ -100,12 +104,16 @@ spring:
             - AddRequestParameter=pageSize, 8
             - AddRequestParameter=bizProd, 1
             - AddRequestParameter=posType, 3
+#      default-filters:   # 默认过滤器
+#        - StripPrefix=1
+
 
 logging:
   level:
     org.springframework.cloud.gateway: TRACE
     org.springframework.http.server.reactive: DEBUG
     org.springframework.web.reactive: DEBUG
+    org.springframework.cloud.loadbalancer: trace
     reactor.ipc.netty: DEBUG
     reactor.netty: DEBUG
 

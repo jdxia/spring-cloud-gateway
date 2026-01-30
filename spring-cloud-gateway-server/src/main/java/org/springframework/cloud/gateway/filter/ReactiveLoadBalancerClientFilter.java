@@ -113,6 +113,8 @@ public class ReactiveLoadBalancerClientFilter implements GlobalFilter, Ordered {
 		Set<LoadBalancerLifecycle> supportedLifecycleProcessors = LoadBalancerLifecycleValidator
 			.getSupportedLifecycleProcessors(clientFactory.getInstances(serviceId, LoadBalancerLifecycle.class),
 					RequestDataContext.class, ResponseData.class, ServiceInstance.class);
+
+		// 构造一个负载均衡
 		DefaultRequest<RequestDataContext> lbRequest = new DefaultRequest<>(new RequestDataContext(
 				new RequestData(exchange.getRequest(), exchange.getAttributes()), getHint(serviceId)));
 		return choose(lbRequest, serviceId, supportedLifecycleProcessors).doOnNext(response -> {
