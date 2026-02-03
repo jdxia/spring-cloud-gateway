@@ -1,24 +1,7 @@
-/*
- * Copyright 2013-present the original author or authors.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      https://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package org.springframework.cloud.gateway.sample;
 
 import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
 import reactor.core.publisher.Mono;
 
@@ -29,7 +12,7 @@ import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.cloud.gateway.route.RouteLocator;
 import org.springframework.cloud.gateway.route.builder.RouteLocatorBuilder;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.ComponentScan;
 import org.springframework.http.MediaType;
 import org.springframework.web.reactive.function.BodyInserters;
 import org.springframework.web.reactive.function.server.RequestPredicates;
@@ -37,19 +20,20 @@ import org.springframework.web.reactive.function.server.RouterFunction;
 import org.springframework.web.reactive.function.server.RouterFunctions;
 import org.springframework.web.reactive.function.server.ServerResponse;
 
-/**
- * @author Spencer Gibb
- */
+
 @SpringBootConfiguration
 @EnableAutoConfiguration
-//@Import(AdditionalRoutes.class)
+@ComponentScan("org.springframework.cloud.gateway.sample")
 public class GatewaySampleApplication {
 
 	public static void main(String[] args) {
 		SpringApplication.run(GatewaySampleApplication.class, args);
 	}
 
-	/**
+
+
+
+/**
 	public static final String HELLO_FROM_FAKE_ACTUATOR_METRICS_GATEWAY_REQUESTS = "hello from fake /actuator/metrics/spring.cloud.gateway.requests";
 
 	@Value("${test.uri:http://httpbin.org:80}")
@@ -141,16 +125,6 @@ public class GatewaySampleApplication {
 					.filters(f ->
 							f.prefixPath("/httpbin")
 									.addResponseHeader("X-AnotherHeader", "baz"))
-					.uri(uri)
-				)
-				.route(r -> r.order(-1)
-					.host("**.throttle.org").and().path("/get")
-					.filters(f -> f.prefixPath("/httpbin")
-									.filter(new ThrottleGatewayFilter()
-									.setCapacity(1)
-									.setRefillTokens(1)
-									.setRefillPeriod(10)
-									.setRefillUnit(TimeUnit.SECONDS)))
 					.uri(uri)
 				)
 				.build();

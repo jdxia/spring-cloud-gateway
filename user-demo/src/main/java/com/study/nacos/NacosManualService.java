@@ -27,6 +27,8 @@ public class NacosManualService {
 
 	/**
 	 * 手动上线：注册到 Nacos，并允许接收流量
+	 *
+	 * http://127.0.0.1:8890/online
 	 */
 	public synchronized void online() {
 		AvailabilityChangeEvent.publish(applicationContext, ReadinessState.REFUSING_TRAFFIC);
