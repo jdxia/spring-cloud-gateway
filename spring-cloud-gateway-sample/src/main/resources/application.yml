@@ -9,6 +9,8 @@ server:
   shutdown: graceful
 
 spring:
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
   application:
     name: my-gateway
   main:
@@ -57,7 +59,7 @@ spring:
           user: /actuator/health/readiness
       cache:
         enabled: true
-        ttl: 5s
+        ttl: 7s
         capacity: 1024  # 默认是256 超过了就进行驱逐
     gateway.server.webflux:
       httpclient:
@@ -65,11 +67,12 @@ spring:
         response-timeout: 10s          # 响应超时
         pool:
           type: fixed                  # 固定连接池（生产推荐）
-          max-connections: 500         # 最大连接数
-          acquire-timeout: 5000        # 获取连接超时
+          leasing-strategy: lifo        # 后进先出, 用热连接
+          max-connections: 200         # 最大连接数, 每个ip:port 200
+          acquire-timeout: 3000        # 获取连接超时
           max-idle-time: 20s           # 最大空闲时间
-          max-life-time: 60s           # 连接最大存活时间
-          eviction-interval: 30s       # 定期清理空闲连接
+          max-life-time: 60s           # 连接最大存活时间, 会强制杀掉所有连接，包括 WebSocket 连接
+          eviction-interval: 15s       # 定期清理空闲连接
           metrics: true                # 启用连接池指标
       routeFilterCacheEnabled: false # 路由过滤器缓存, 这个如果要缓存要注意一下共享变量, 所有请求相关的数据都存储在 ServerWebExchange 的 attributes 中
 #      default-filters: # 默认过滤器
@@ -90,6 +93,7 @@ spring:
           uri: lb://user
           predicates:
             - Path=/user/**
+            - Test1Predicate=GET
           filters:
             # StripPrefixGatewayFilterFactory
             - StripPrefix=1  # 去掉url里面的第一段进行转发
