@@ -25,6 +25,12 @@ import org.springframework.web.reactive.function.server.ServerResponse;
 @EnableAutoConfiguration
 @ComponentScan("org.springframework.cloud.gateway.sample")
 public class GatewaySampleApplication {
+	/**
+	 * 源码先看这几个文件
+	 * 1. 自动装配的 spring-cloud-gateway-server-mvc/src/main/resources/META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports
+	 * 2. 其他的一些 spring-cloud-gateway-server-mvc/src/main/resources/META-INF/spring.factories
+	 *
+	 */
 
 	public static void main(String[] args) {
 		SpringApplication.run(GatewaySampleApplication.class, args);

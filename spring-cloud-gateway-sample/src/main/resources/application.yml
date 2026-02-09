@@ -29,7 +29,7 @@ spring:
       discovery:
 #        watch-delay: 5000
         watch:
-          enabled: true
+          enabled: true  # 启用服务监听
         serverAddr: ${nacos.address}
         namespace: ${nacos.namespace}
         # 心跳间隔：5s
@@ -91,10 +91,13 @@ spring:
           predicates:
             - Path=/user/**
           filters:
+            # StripPrefixGatewayFilterFactory
             - StripPrefix=1  # 去掉url里面的第一段进行转发
             - name: Test1
               args:
                 prefix: abc
+            # PrefixPathGatewayFilterFactory允许你在对应的路由请求前增加前缀。例如实例配置中的请求/user，最后转发到目标服务的路径变为/user/hello
+#            - PrefixPath=/mypath
         # =====================================
         # http://127.0.0.1:8899/testSearch
         - id: hot_list

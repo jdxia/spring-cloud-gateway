@@ -19,6 +19,8 @@ spring:
     time-zone: GMT+8
   application:
     name: user
+  lifecycle:
+    timeout-per-shutdown-phase: 30s  # 优雅关闭超时未配置
   cloud:
     nacos:
       discovery:
