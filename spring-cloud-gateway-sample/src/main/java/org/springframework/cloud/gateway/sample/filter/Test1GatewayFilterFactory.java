@@ -1,5 +1,6 @@
 package org.springframework.cloud.gateway.sample.filter;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.cloud.gateway.filter.GatewayFilter;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.factory.GatewayFilterFactory;
@@ -10,6 +11,7 @@ import reactor.core.publisher.Mono;
 import java.util.List;
 
 @Component
+@Slf4j
 public class Test1GatewayFilterFactory implements GatewayFilterFactory<Test1GatewayFilterFactory.Config> {
 
 	@Override

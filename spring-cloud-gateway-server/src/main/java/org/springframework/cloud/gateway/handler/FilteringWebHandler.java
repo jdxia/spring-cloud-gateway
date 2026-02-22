@@ -68,6 +68,7 @@ public class FilteringWebHandler implements WebHandler, ApplicationListener<Refr
 	}
 
 	public FilteringWebHandler(List<GlobalFilter> globalFilters, boolean routeFilterCacheEnabled) {
+		// 获取所有全局过滤器
 		this.globalFilters = loadFilters(globalFilters);
 		this.routeFilterCacheEnabled = routeFilterCacheEnabled;
 	}
@@ -121,10 +122,15 @@ public class FilteringWebHandler implements WebHandler, ApplicationListener<Refr
 		}
 	}
 
+	// 所有的过滤器
 	protected List<GatewayFilter> getAllFilters(Route route) {
+		// 路由的过滤器
 		List<GatewayFilter> gatewayFilters = route.getFilters();
+		// 全局的过滤器
 		List<GatewayFilter> combined = new ArrayList<>(this.globalFilters);
 		combined.addAll(gatewayFilters);
+
+		// 排序
 		AnnotationAwareOrderComparator.sort(combined);
 		return combined;
 	}

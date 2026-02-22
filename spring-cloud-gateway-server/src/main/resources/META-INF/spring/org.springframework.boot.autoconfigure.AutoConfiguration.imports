@@ -1,4 +1,5 @@
 org.springframework.cloud.gateway.config.GatewayClassPathWarningAutoConfiguration
+# 配置文件是在这里
 org.springframework.cloud.gateway.config.GatewayAutoConfiguration
 org.springframework.cloud.gateway.config.GatewayResilience4JCircuitBreakerAutoConfiguration
 org.springframework.cloud.gateway.config.GatewayNoLoadBalancerClientAutoConfiguration

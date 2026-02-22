@@ -2,52 +2,38 @@ package org.springframework.cloud.gateway.sample.config;
 
 import java.net.URI;
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ThreadPoolExecutor;
 
+
+import io.netty.channel.ChannelOption;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.BeansException;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.event.ApplicationStartedEvent;
+import org.springframework.cloud.gateway.config.GatewayProperties;
+import org.springframework.cloud.gateway.handler.predicate.PredicateDefinition;
+import org.springframework.cloud.gateway.route.RouteDefinition;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
 import org.springframework.context.ApplicationListener;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.core.Ordered;
-import org.springframework.util.CollectionUtils;
-import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
-
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.ApplicationArguments;
-import org.springframework.boot.ApplicationRunner;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.cloud.gateway.config.GatewayProperties;
-import org.springframework.cloud.gateway.handler.predicate.PredicateDefinition;
-import org.springframework.cloud.gateway.route.RouteDefinition;
+import org.springframework.http.HttpStatusCode;
+import org.springframework.http.client.reactive.ReactorClientHttpConnector;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
+import reactor.netty.http.client.HttpClient;
 
-/**
- * 网关启动后主动发请求预热，触发 LoadBalancer 缓存填充。
- *
- * 原理：Gateway 的 LoadBalancer 是 Lazy 的，只有第一个请求进来才会从 Nacos 拉取服务实例列表。
- * 启动后主动发请求，让 LoadBalancer 提前缓存实例 IP，后续请求就不会有冷启动延迟。
- *
- * 自动从 GatewayProperties 中提取所有 lb:// 路由，按服务去重后，拼接健康检查路径进行预热。
- * 新增 lb:// 路由后无需修改此类，只要路由配了 Path predicate 就会自动预热。
- *
- * 注意事项：
- * 1. 预热失败不影响网关启动，只会打 warn 日志
- * 2. 下游服务此时不一定启动完成，404/503 都正常 —— 目的只是触发 LoadBalancer 缓存
- * 3. 如果某个路由的 Path predicate 格式特殊（如不带前缀的 /** ），需要检查日志确认拼出来的路径是否合理
- * 4. 只包含 yaml/properties 里配置的路由，代码方式（RouteLocatorBuilder）定义的路由不在范围内
- *
- * 配置开关：gateway.warmup.enabled=true（默认开启），生产环境可按需关闭
- */
+
 @Component
 @ConditionalOnProperty(name = "gateway.warmup.enabled", havingValue = "true", matchIfMissing = true)
 public class GatewayWarmUpRunner implements ApplicationListener<ApplicationStartedEvent>, ApplicationContextAware, Ordered {
@@ -56,157 +42,212 @@ public class GatewayWarmUpRunner implements ApplicationListener<ApplicationStart
 
 	private ConfigurableApplicationContext applicationContext;
 
-	/**
-	 * 统一的下游服务健康检查路径。
-	 * 预热时会拼接为：/{路由Path前缀}/{HEALTH_CHECK_PATH}
-	 * 例如路由 Path=/user/** → 预热请求 GET /user/actuator/health/readiness
-	 */
-	private static final String HEALTH_CHECK_PATH = "actuator/health/readiness";
+	private final WebClient warmUpWebClient;
 
-	private final WebClient webClient;
 	private final GatewayProperties gatewayProperties;
 
-	public GatewayWarmUpRunner(@Value("${server.port:8899}") int port,
-			GatewayProperties gatewayProperties) {
-		this.webClient = WebClient.builder()
+	private final ObjectProvider<HttpClient> httpClientProvider;
+
+	public GatewayWarmUpRunner(@Value("${server.port:8899}") int port, GatewayProperties gatewayProperties,
+							   ObjectProvider<HttpClient> httpClientProvider) {
+
+		HttpClient httpClient = HttpClient.create()
+				.option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 2000)  // 连接超时 2 秒
+				.responseTimeout(Duration.ofSeconds(3));               // 响应超时 3 秒
+
+		this.warmUpWebClient = WebClient.builder()
 				.baseUrl("http://127.0.0.1:" + port)
+				.clientConnector(new ReactorClientHttpConnector(httpClient))
 				.build();
 		this.gatewayProperties = gatewayProperties;
+		this.httpClientProvider = httpClientProvider;
 	}
 
 	@Override
 	public void onApplicationEvent(ApplicationStartedEvent event) {
-		doHandler();
+		// 预热线程池
+		warmUpExecutors();
+
+		// 预热 Netty HttpClient（安全获取，Bean 不存在时跳过）
+		warmUpHttpClient();
+
+		warmUpLoadBalancerCache();
 	}
 
-	private void doHandler() {
-		List<WarmUpTarget> targets = resolveWarmUpTargets();
+	/**
+	 * 预热 Netty HttpClient 连接池和 EventLoop。
+	 * <p>
+	 * 使用 ObjectProvider 安全获取，避免容器中没有 HttpClient Bean 时启动失败。
+	 * 例如升级 Spring Cloud Gateway 版本后 @ConditionalOnMissingBean 条件变化，
+	 * HttpClient Bean 可能不存在。
+	 */
+	private void warmUpHttpClient() {
+		HttpClient client = httpClientProvider.getIfAvailable();
+		if (client == null) {
+			log.warn("[Warmup] 容器中未找到 HttpClient Bean，跳过 HttpClient 预热");
+			return;
+		}
+		try {
+			client.warmup().block();
+			log.info("[Warmup] Netty HttpClient 预热完成");
+		} catch (Exception ex) {
+			// 预热失败不影响启动
+			log.warn("[Warmup] Netty HttpClient 预热异常，已跳过: {}", ex.getMessage());
+		}
+	}
 
-		if (CollectionUtils.isEmpty(targets)) {
-			log.info("[Warmup] 没有发现 lb:// 路由，跳过预热");
+	/**
+	 * 预热 Spring 容器中所有线程池的核心线程。
+	 * <p>
+	 * 覆盖范围：
+	 * 1. ThreadPoolTaskExecutor（Spring 的通用异步线程池，如 @Async 默认线程池）
+	 * 2. ThreadPoolTaskScheduler（Spring 的调度线程池，如 @Scheduled 使用的）
+	 * 3. 直接注册为 Bean 的 ExecutorService（用户自定义的原生线程池）
+	 * <p>
+	 * 注意：Reactor Netty 内部的 EventLoop 线程不是 Spring Bean，无法通过此方式预热，
+	 * 但预热 HTTP 请求会间接触发 Netty 线程初始化。
+	 */
+	private void warmUpExecutors() {
+		// 用 IdentityHashMap 做去重，避免同一个底层 ThreadPoolExecutor 被预热多次
+		// （比如 ThreadPoolTaskExecutor 内部包装了一个 ThreadPoolExecutor，两者是同一个实例）
+		Set<ThreadPoolExecutor> prestarted = Collections.newSetFromMap(new IdentityHashMap<>());
+
+		// 1. Spring 的 ThreadPoolTaskExecutor（最常见，@Async、自定义异步线程池等）
+		Map<String, ThreadPoolTaskExecutor> taskExecutors = applicationContext.getBeansOfType(ThreadPoolTaskExecutor.class);
+		for (Map.Entry<String, ThreadPoolTaskExecutor> entry : taskExecutors.entrySet()) {
+			ThreadPoolExecutor executor = entry.getValue().getThreadPoolExecutor();
+			if (prestarted.add(executor)) {
+				executor.prestartAllCoreThreads();
+				log.info("[Warmup] ThreadPoolTaskExecutor [{}] 预启动 ", entry.getKey());
+			}
+		}
+
+		// 2. Spring 的 ThreadPoolTaskScheduler（@Scheduled、定时任务等）
+		Map<String, ThreadPoolTaskScheduler> taskSchedulers = applicationContext.getBeansOfType(ThreadPoolTaskScheduler.class);
+		for (Map.Entry<String, ThreadPoolTaskScheduler> entry : taskSchedulers.entrySet()) {
+			ThreadPoolExecutor executor = entry.getValue().getScheduledThreadPoolExecutor();
+			if (prestarted.add(executor)) {
+				executor.prestartAllCoreThreads();
+				log.info("[Warmup] ThreadPoolTaskScheduler [{}] 预启动", entry.getKey());
+			}
+		}
+
+		// 3. 直接注册的 ExecutorService Bean（用户可能直接 @Bean 返回 ThreadPoolExecutor）
+		Map<String, ExecutorService> executorServices = applicationContext.getBeansOfType(ExecutorService.class);
+		for (Map.Entry<String, ExecutorService> entry : executorServices.entrySet()) {
+			if (entry.getValue() instanceof ThreadPoolExecutor executor && prestarted.add(executor)) {
+				int count = executor.prestartAllCoreThreads();
+				log.info("[Warmup] ExecutorService [{}] 预启动", entry.getKey());
+			}
+		}
+
+		log.info("[Warmup] 线程池预热完毕, 共 {} 个线程池", prestarted.size());
+	}
+
+	/**
+	 * 预热 LoadBalancer 缓存：对每个 lb:// 服务发一次 HTTP 请求，触发实例列表拉取。
+	 */
+	private void warmUpLoadBalancerCache() {
+		List<WarmUpTarget> targets = resolveWarmUpTargets();
+		if (targets.isEmpty()) {
+			log.warn("[Warmup] 没有发现 lb:// 路由，跳过 LoadBalancer 预热");
 			return;
 		}
 
 		log.info("[Warmup] 发现 {} 个 lb:// 服务需要预热: {}",
-				targets.size(), targets.stream().map(t -> t.serviceId).toList());
+				targets.size(), targets.stream().map(WarmUpTarget::serviceId).toList());
 
 		Flux.fromIterable(targets)
-				.flatMap(this::warmUp)
-				.collectList()
-				.subscribe(
-						results -> log.info("[Warmup] 预热完成，共处理 {} 个服务", results.size()),
-						error -> log.error("[Warmup] 预热过程发生未预期的错误", error)
-				);
+				.flatMap(target ->
+						Flux.range(0, 16).flatMap(i -> warmUp(target)))
+				.then()
+				.timeout(Duration.ofSeconds(30))
+				.onErrorResume(e -> {
+					log.warn("[Warmup] LoadBalancer 预热超时或异常，已跳过", e);
+					return Mono.empty();
+				})
+				.block();
+
+		log.info("[Warmup] LoadBalancer 预热流程结束");
 	}
 
 	/**
 	 * 从 GatewayProperties 中提取所有 lb:// 路由，按 serviceId 去重，
-	 * 解析 Path predicate 前缀，拼接健康检查路径。
-	 *
-	 * 去重逻辑：同一个 serviceId（如 lb://user）只预热一次，因为 LoadBalancer 缓存是按 serviceId 维度的，
-	 * 多个路由指向同一个服务时，预热一次就够了。
+	 * 解析 Path predicate 前缀作为预热路径。
 	 */
 	private List<WarmUpTarget> resolveWarmUpTargets() {
+		Set<String> seen = new HashSet<>();
 		List<WarmUpTarget> targets = new ArrayList<>();
-		Set<String> seenServiceIds = new HashSet<>();
 
 		for (RouteDefinition route : gatewayProperties.getRoutes()) {
 			URI uri = route.getUri();
-			// 只处理 lb:// 协议的路由（需要 LoadBalancer 的）
-			if (uri == null || !"lb".equalsIgnoreCase(uri.getScheme())) {
+			if (uri == null || !"lb".equalsIgnoreCase(uri.getScheme()) || uri.getHost() == null) {
 				continue;
 			}
-
-			// 按 serviceId 去重：lb://user 和 lb://user 只预热一次
 			String serviceId = uri.getHost();
-			if (serviceId == null || !seenServiceIds.add(serviceId)) {
+			String prefix = extractPathPrefix(route);
+			if (prefix == null) {
+				log.warn("[Warmup] 路由 [{}] (lb://{}) 没有可用的 Path predicate，跳过", route.getId(), serviceId);
 				continue;
 			}
-
-			// 从 predicates 中找到 Path predicate，提取前缀
-			String pathPrefix = extractPathPrefix(route);
-			if (pathPrefix == null) {
-				log.warn("[Warmup] 路由 [{}] (lb://{}) 没有 Path predicate，跳过", route.getId(), serviceId);
+			// Path 解析成功后再按 serviceId 去重
+			if (!seen.add(serviceId)) {
 				continue;
 			}
-
-			String warmUpPath = pathPrefix + "/" + HEALTH_CHECK_PATH;
-			targets.add(new WarmUpTarget(serviceId, route.getId(), warmUpPath));
-			log.debug("[Warmup] 路由 [{}] lb://{} → 预热路径: {}", route.getId(), serviceId, warmUpPath);
+			targets.add(new WarmUpTarget(serviceId, route.getId(), prefix + "/actuator/health/readiness"));
 		}
-
 		return targets;
 	}
 
 	/**
 	 * 从路由的 Path predicate 中提取路径前缀。
-	 *
 	 * Path=/user/**       → /user
 	 * Path=/api/order/**  → /api/order
-	 * Path=/echo          → /echo
-	 *
-	 * 原理：Path predicate 使用 shortcut 配置时，args 存储为 {_genkey_0: "/user/**", _genkey_1: "/user2/**", ...}
-	 * 取第一个值，去掉尾部的通配符部分。
 	 */
 	private String extractPathPrefix(RouteDefinition route) {
 		for (PredicateDefinition predicate : route.getPredicates()) {
 			if (!"Path".equals(predicate.getName())) {
 				continue;
 			}
-
-			Map<String, String> predicateArgs = predicate.getArgs();
-			String pathPattern = predicateArgs.values().stream()
-					.findFirst()
-					.orElse(null);
-
-			if (pathPattern == null || pathPattern.isBlank()) {
+			String pattern = predicate.getArgs().values().stream().findFirst().orElse(null);
+			if (pattern == null || pattern.isBlank()) {
 				continue;
 			}
-
-			// 去掉尾部通配符：/user/** → /user, /api/order/** → /api/order
-			String prefix = pathPattern;
-			int wildcardIdx = prefix.indexOf('*');
-			if (wildcardIdx > 0) {
-				prefix = prefix.substring(0, wildcardIdx);
+			// 路径变量无法解析，跳过
+			if (pattern.contains("{")) {
+				log.warn("[Warmup] 路由 [{}] 的 Path 包含路径变量 {}，无法自动预热，跳过", route.getId(), pattern);
+				continue;
 			}
-			// 也处理路径变量：/api/{version}/user 中的 {version} 无法解析，跳过这种路由
-			if (prefix.contains("{")) {
-				log.warn("[Warmup] 路由 [{}] 的 Path 包含路径变量 {}，无法自动预热，跳过", route.getId(), pathPattern);
-				return null;
-			}
-			// 去掉末尾的斜杠：/user/ → /user
+			// /user/** → /user
+			String prefix = pattern.contains("*") ? pattern.substring(0, pattern.indexOf('*')) : pattern;
 			if (prefix.endsWith("/")) {
 				prefix = prefix.substring(0, prefix.length() - 1);
 			}
-
 			return prefix;
 		}
 		return null;
 	}
 
 	/**
-	 * 对单个服务发预热请求。
-	 *
-	 * 使用 retrieve() + onStatus() 忽略所有 HTTP 错误状态码。
-	 * 预热场景下，任何 HTTP 响应（包括 503）都说明 LoadBalancer 已触发实例拉取，属于预热成功。
-	 * 只有连接失败、超时等网络层错误才算真正的失败。
+	 * 对单个服务发预热请求，任何响应（含非2xx）都算触发了 LoadBalancer 缓存。
+	 * 网络层错误不影响网关启动。
 	 */
-	private Mono<String> warmUp(WarmUpTarget target) {
-		return webClient.get()
-				.uri(target.path)
-				.retrieve()
-				// 忽略所有 HTTP 错误状态码，预热只关心"有没有响应"，不关心状态码
-				.onStatus(status -> true, response -> Mono.empty())
-				.toBodilessEntity()
-				.doOnNext(entity ->
-					log.info("[Warmup] lb://{} ({}) -> status: {}", target.serviceId, target.path, entity.getStatusCode())
-				)
-				.map(entity -> target.serviceId)
+	private Mono<Void> warmUp(WarmUpTarget target) {
+		return warmUpWebClient.get()
+				.uri(target.path())
+				.exchangeToMono(response -> {
+					int statusCode = response.statusCode().value();
+					if (statusCode == 200) {
+						log.info("[Warmup] 预热成功 lb://{} ({}) -> {}", target.serviceId(), target.path(), statusCode);
+					} else {
+						log.error("[Warmup] 预热失败, 状态码非200 lb://{} ({}) -> {}", target.serviceId(), target.path(), statusCode);
+					}
+					return response.releaseBody();
+				})
 				.timeout(Duration.ofSeconds(3))
 				.onErrorResume(e -> {
-					// 网络层错误（连接拒绝、超时等），不影响启动
-					log.warn("[Warmup] lb://{} ({}) -> 网络错误: {}", target.serviceId, target.path, e.getMessage());
-					return Mono.just(target.serviceId);
+					log.error("[Warmup] 预热失败 lb://{} ({})", target.serviceId(), target.path(), e);
+					return Mono.empty();
 				});
 	}
 
@@ -223,7 +264,6 @@ public class GatewayWarmUpRunner implements ApplicationListener<ApplicationStart
 
 	@Override
 	public int getOrder() {
-		// 优先级低一点
 		return LOWEST_PRECEDENCE - 10;
 	}
 

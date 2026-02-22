@@ -25,7 +25,7 @@ public class UserApplication {
 
 	@Bean
 	public RouterFunction<ServerResponse> test() {
-		// http://127.0.0.1:8890/test 可以再开一个 http://127.0.0.1:8890/test
+		// http://127.0.0.1:8890/api/user-demo/test 可以再开一个 http://127.0.0.1:8890/api/user-demo/test
 		return route()
 				.GET("/test", request -> {
 					log.info("===========> get user success! time: {}", LocalDateTime.now());
@@ -36,7 +36,7 @@ public class UserApplication {
 
 	@Bean
 	public RouterFunction<ServerResponse> testOnline() {
-		// http://127.0.0.1:8890/online
+		// http://127.0.0.1:8890/api/user-demo/online
 		return route()
 				.GET("/online", request -> {
 					nacosManualService.online();
@@ -48,7 +48,7 @@ public class UserApplication {
 
 	@Bean
 	public RouterFunction<ServerResponse> testOffline() {
-		// http://127.0.0.1:8890/offline
+		// http://127.0.0.1:8890/api/user-demo/offline
 		return route()
 				.GET("/offline", request -> {
 					nacosManualService.offline();
@@ -59,6 +59,11 @@ public class UserApplication {
 	}
 
 	public static void main(String[] args) {
+		System.setProperty("nacos.logging.default.config.enabled", "false");
+		System.setProperty("rocketmq.client.logUseSlf4j", "true");
+
 		SpringApplication.run(UserApplication.class, args);
 	}
+
+
 }

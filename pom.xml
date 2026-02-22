@@ -177,7 +177,7 @@
 		<module>spring-cloud-gateway-integration-tests</module>
 		<module>docs</module>
 		<module>user-demo</module>
-	</modules>
+    </modules>
 
 	<build>
 		<plugins>

@@ -3,6 +3,9 @@ package org.springframework.cloud.gateway.sample;
 import java.util.Locale;
 import java.util.Map;
 
+import org.springframework.cloud.client.loadbalancer.reactive.ReactorLoadBalancerExchangeFilterFunction;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
 import org.springframework.beans.factory.annotation.Value;
@@ -20,6 +23,8 @@ import org.springframework.web.reactive.function.server.RouterFunction;
 import org.springframework.web.reactive.function.server.RouterFunctions;
 import org.springframework.web.reactive.function.server.ServerResponse;
 
+import static org.springframework.web.reactive.function.server.RouterFunctions.route;
+
 
 @SpringBootConfiguration
 @EnableAutoConfiguration
@@ -27,16 +32,36 @@ import org.springframework.web.reactive.function.server.ServerResponse;
 public class GatewaySampleApplication {
 	/**
 	 * 源码先看这几个文件
-	 * 1. 自动装配的 spring-cloud-gateway-server-mvc/src/main/resources/META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports
-	 * 2. 其他的一些 spring-cloud-gateway-server-mvc/src/main/resources/META-INF/spring.factories
+	 * 1. 自动装配的 spring-cloud-gateway-server/src/main/resources/META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports
+	 * 2. 其他的一些 spring-cloud-gateway-server/src/main/resources/META-INF/spring.factories
 	 *
 	 */
 
 	public static void main(String[] args) {
+		System.setProperty("nacos.logging.default.config.enabled", "false");
+		System.setProperty("rocketmq.client.logUseSlf4j", "true");
+
 		SpringApplication.run(GatewaySampleApplication.class, args);
 	}
 
+	/**
+	 * 支持负载均衡
+	 */
+	@Bean
+	public WebClient webLBClient(ReactorLoadBalancerExchangeFilterFunction lb) {
+		return WebClient.builder()
+				.filter(lb)
+				.build();
+	}
 
+	@Bean
+	public RouterFunction<ServerResponse> user() {
+		return route()
+				.GET("/index", request -> {
+					return ServerResponse.status(HttpStatus.OK).body(BodyInserters.fromValue("hello gateway!"));
+				})
+				.build();
+	}
 
 
 /**

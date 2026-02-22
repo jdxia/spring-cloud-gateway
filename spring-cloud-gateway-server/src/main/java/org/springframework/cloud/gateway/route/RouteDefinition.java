@@ -42,10 +42,16 @@ public class RouteDefinition {
 
 	private String id;
 
+	/**
+	 * 匹配器的定义
+	 */
 	@NotEmpty
 	@Valid
 	private List<PredicateDefinition> predicates = new ArrayList<>();
 
+	/**
+	 * 过滤器的定义
+	 */
 	@Valid
 	private List<FilterDefinition> filters = new ArrayList<>();
 
@@ -54,6 +60,9 @@ public class RouteDefinition {
 
 	private Map<String, Object> metadata = new HashMap<>();
 
+	/**
+	 * 路由的顺序
+	 */
 	private int order = 0;
 
 	private boolean enabled = true;

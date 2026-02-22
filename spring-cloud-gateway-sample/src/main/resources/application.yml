@@ -24,43 +24,51 @@ spring:
     time-zone: GMT+8
   jmx:
     enabled: false
+  config:
+    import: optional:nacos:${spring.application.name}
   cloud:
     nacos:
-      #      username: ${nacos.username}
-      #      password: ${nacos.password}
+#      username: ${nacos.username}
+#      password: ${nacos.password}
       discovery:
 #        watch-delay: 5000
         watch:
           enabled: true  # 启用服务监听
         serverAddr: ${nacos.address}
         namespace: ${nacos.namespace}
+        group: http  # 只发现这个group下面的
         # 心跳间隔：5s
         heartBeatInterval: 5000
         # 15s 不上报 -> unhealthy
         heartBeatTimeout: 15000
         # 30s 不上报 -> 剔除实例
         ipDeleteTimeout: 30000
-        group: http
         cluster-name: DEFAULT
         fail-fast: true # 强依赖nacos失败就不启动
         ephemeral: true
+      config:
+        serverAddr: ${nacos.address}
+        namespace: ${nacos.namespace}
+        file-extension: yaml
+        refresh-enabled: true
     loadbalancer:
       nacos:
         enabled: true  # 生产要看下有没有这个, 如果有这个就代表跨集群了  A cross-cluster call occurs
       configurations: health-check  # 启用健康检查 ServiceInstanceListSupplier
       health-check:
-        interval: 5s
-        initialDelay: 5s  # 首次检查延迟, 后面的服务注册到nacos上之后要立刻 健康检查能过
+        interval: 10s
+#        initialDelay: 5s  # todo 这个有点坑 , 健康检查的初始延迟时间，即负载均衡器启动后等待多久才开始执行第一次健康检查，用于给后端服务足够的启动时间
         refetchInstances: true  # 关键：定期从注册中心重新获取实例
-        refetchInstancesInterval: 3s  # 重新获取间隔
+        refetchInstancesInterval: 5s  # 重新获取间隔
         repeatHealthCheck: true  # 是否循环健康检查
         updateResultsList: true # 是否根据检查结果实时更新负载均衡器的缓存列表
         path:
-          user: /actuator/health/readiness
+#          default: /actuator/health/readiness
+          user-demo: /api/user-demo/actuator/health/readiness  # 后续这个需要动态生成
       cache:
         enabled: true
-        ttl: 7s
-        capacity: 1024  # 默认是256 超过了就进行驱逐
+        ttl: 10s
+        capacity: 2048  # 默认是256 超过了就进行驱逐
     gateway.server.webflux:
       httpclient:
         connect-timeout: 3000          # 连接超时，毫秒
@@ -70,33 +78,34 @@ spring:
           leasing-strategy: lifo        # 后进先出, 用热连接
           max-connections: 200         # 最大连接数, 每个ip:port 200
           acquire-timeout: 3000        # 获取连接超时
-          max-idle-time: 20s           # 最大空闲时间
+          max-idle-time: 30s           # 最大空闲时间
           max-life-time: 60s           # 连接最大存活时间, 会强制杀掉所有连接，包括 WebSocket 连接
-          eviction-interval: 15s       # 定期清理空闲连接
+          eviction-interval: 20s       # 定期清理空闲连接
           metrics: true                # 启用连接池指标
       routeFilterCacheEnabled: false # 路由过滤器缓存, 这个如果要缓存要注意一下共享变量, 所有请求相关的数据都存储在 ServerWebExchange 的 attributes 中
-#      default-filters: # 默认过滤器
+#      default-filters: # 默认过滤器, 可以有多个
 #        - StripPrefix=1  # 去掉url里面的第一段进行转发
 #        - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
 #        - RemoveRequestHeader=Cookie  # 根据需要移除敏感头
       routes:
         # to run server $ wscat --listen 9000
         # to run client  $ wscat --connect ws://localhost:8080/echo
-        - id: websocket_test
-          uri: ws://localhost:9000
-          order: 9000
-          predicates:
-            - Path=/echo
+#        - id: websocket_test
+#          uri: ws://localhost:9000
+#          order: 9000
+#          predicates:
+#            - Path=/echo
         # =====================================
-        # http://127.0.0.1:8899/user/test
+        # http://127.0.0.1:8899/api/user-demo/test
         - id: user_route
-          uri: lb://user
+          uri: lb://user-demo
           predicates:
-            - Path=/user/**
+            - Path=/api/user-demo/**
             - Test1Predicate=GET
+#            - PrefixPath=/api/user-demo  # url前面加一些固定的前缀
           filters:
             # StripPrefixGatewayFilterFactory
-            - StripPrefix=1  # 去掉url里面的第一段进行转发
+#            - StripPrefix=1  # 去掉url里面的第一段进行转发
             - name: Test1
               args:
                 prefix: abc
@@ -104,30 +113,52 @@ spring:
 #            - PrefixPath=/mypath
         # =====================================
         # http://127.0.0.1:8899/testSearch
-        - id: hot_list
-          uri: https://www.pxb7.com
-          order: 10000
-          predicates:
-            - Path=/testSearch
-          filters:
-            - SetPath=/api/search/game/selectHotList
-            - AddRequestParameter=pageIndex, 1
-            - AddRequestParameter=pageSize, 8
-            - AddRequestParameter=bizProd, 1
-            - AddRequestParameter=posType, 3
+#        - id: hot_list
+#          uri: https://www.pxb7.com
+#          order: 10000
+#          predicates:
+#            - Path=/testSearch
+#          filters:
+#            - SetPath=/api/search/game/selectHotList
+#            - AddRequestParameter=pageIndex, 1
+#            - AddRequestParameter=pageSize, 8
+#            - AddRequestParameter=bizProd, 1
+#            - AddRequestParameter=posType, 3
 
 
-logging:
-  level:
-    org.springframework.cloud.gateway: TRACE
-    org.springframework.http.server.reactive: DEBUG
-    org.springframework.web.reactive: DEBUG
-    org.springframework.cloud.loadbalancer: trace
-    reactor.ipc.netty: DEBUG
-    reactor.netty: DEBUG
+#logging:
+#  level:
+#    org.springframework.cloud.gateway: TRACE
+#    org.springframework.http.server.reactive: DEBUG
+#    org.springframework.web.reactive: DEBUG
+#    org.springframework.cloud.loadbalancer: trace
+#    reactor.ipc.netty: DEBUG
+#    reactor.netty: DEBUG
 
+
+
+
+
+# 路由都是在这个类 org.springframework.cloud.gateway.actuate.GatewayControllerEndpoint
+# 访问 http://127.0.0.1:8899/actuator/gateway/routes
+
+# GET    /globalfilters   // 返回全局 Filter 列表
+# GET    /routefilters    // 每个路由的 filter
+# POST   /refresh         // 刷新路由缓存
+# GET    /routes          // 路由列表
+# GET    /routes/{id}     // 指定路由的信息
+# POST   /routes/{id}     // 创建路由
+# DELETE /routes/{id}     // 删除路由
 management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics,prometheus
+#        include: health,info,metrics,prometheus
+        include: '*' # 默认只开放 health,info
+  endpoint:
+    gateway:
+      access: unrestricted  # read-only 只读, unrestricted 可读写(创建/删除路由)
+    health:
+      probes:
+        enabled: true
+        show-details: always

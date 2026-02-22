@@ -103,10 +103,12 @@ public class RouteDefinitionRouteLocator implements RouteLocator {
 
 	@Override
 	public Flux<Route> getRoutes() {
+		// 往下
 		return getRoutes(this.routeDefinitionLocator.getRouteDefinitions());
 	}
 
 	private Flux<Route> getRoutes(Flux<RouteDefinition> routeDefinitions) {
+		// 每个路由定义挨个转换处理, 得到 route 对象
 		Flux<Route> routes = routeDefinitions.map(this::convertToRoute);
 
 		if (!gatewayProperties.isFailOnRouteDefinitionError()) {
@@ -133,14 +135,19 @@ public class RouteDefinitionRouteLocator implements RouteLocator {
 		// 根据路由定义, 生成过滤器
 		List<GatewayFilter> gatewayFilters = getFilters(routeDefinition);
 
+		// 构建路由对象
 		return Route.async(routeDefinition).asyncPredicate(predicate).replaceFilters(gatewayFilters).build();
 	}
 
 	@SuppressWarnings("unchecked")
 	List<GatewayFilter> loadGatewayFilters(String id, List<FilterDefinition> filterDefinitions) {
 		ArrayList<GatewayFilter> ordered = new ArrayList<>(filterDefinitions.size());
+
+		// 循环所有过滤器
 		for (int i = 0; i < filterDefinitions.size(); i++) {
 			FilterDefinition definition = filterDefinitions.get(i);
+
+			// 根据定义的名字找出过滤器工厂
 			GatewayFilterFactory factory = this.gatewayFilterFactories.get(definition.getName());
 			if (factory == null) {
 				throw new IllegalArgumentException(
@@ -151,6 +158,7 @@ public class RouteDefinitionRouteLocator implements RouteLocator {
 						+ definition.getName());
 			}
 
+			// 生成过滤器工厂里面的配置对象
 			// @formatter:off
 			Object configuration = this.configurationService.with(factory)
 					.name(definition.getName())
@@ -167,6 +175,7 @@ public class RouteDefinitionRouteLocator implements RouteLocator {
 				hasRouteId.setRouteId(id);
 			}
 
+			// 根据配置对象 生成过滤器
 			GatewayFilter gatewayFilter = factory.apply(configuration);
 			if (gatewayFilter instanceof Ordered) {
 				ordered.add(gatewayFilter);
@@ -182,12 +191,14 @@ public class RouteDefinitionRouteLocator implements RouteLocator {
 	private List<GatewayFilter> getFilters(RouteDefinition routeDefinition) {
 		List<GatewayFilter> filters = new ArrayList<>();
 
+		// 获取默认过滤器的配置
 		// TODO: support option to apply defaults after route specific filters?
 		if (!this.gatewayProperties.getDefaultFilters().isEmpty()) {
 			filters.addAll(loadGatewayFilters(routeDefinition.getId(),
 					new ArrayList<>(this.gatewayProperties.getDefaultFilters())));
 		}
 
+		// 路由定义里面指定的过滤器对象
 		final List<FilterDefinition> definitionFilters = routeDefinition.getFilters();
 		if (!CollectionUtils.isEmpty(definitionFilters)) {
 			filters.addAll(loadGatewayFilters(routeDefinition.getId(), definitionFilters));
@@ -198,6 +209,7 @@ public class RouteDefinitionRouteLocator implements RouteLocator {
 	}
 
 	private AsyncPredicate<ServerWebExchange> combinePredicates(RouteDefinition routeDefinition) {
+		// 获取所有的匹配器
 		List<PredicateDefinition> predicates = routeDefinition.getPredicates();
 		if (predicates == null || predicates.isEmpty()) {
 			// this is a very rare case, but possible, just match all
@@ -206,11 +218,13 @@ public class RouteDefinitionRouteLocator implements RouteLocator {
 
 		return predicates.stream()
 			.map(nextPredicate -> lookup(routeDefinition, nextPredicate))
+				// 每个都是 and
 			.reduce(AsyncPredicate.from(exchange -> true), AsyncPredicate::and);
 	}
 
 	@SuppressWarnings("unchecked")
 	private AsyncPredicate<ServerWebExchange> lookup(RouteDefinition route, PredicateDefinition predicate) {
+		// 根据名字找对应的工厂
 		RoutePredicateFactory<Object> factory = this.predicates.get(predicate.getName());
 		if (factory == null) {
 			throw new IllegalArgumentException("Unable to find RoutePredicateFactory with name " + predicate.getName());
@@ -220,6 +234,8 @@ public class RouteDefinitionRouteLocator implements RouteLocator {
 					+ predicate.getName());
 		}
 
+
+		// 根据配置的参数 生成工厂里面的 配置对象
 		// @formatter:off
 		Object config = this.configurationService.with(factory)
 				.name(predicate.getName())

@@ -6,6 +6,8 @@ server:
   address: 0.0.0.0
   port: 8890
   shutdown: graceful
+  servlet:
+    context-path: /api/user-demo
 
 spring:
   main:
@@ -28,16 +30,18 @@ spring:
           enabled: true  # 一般网关那边配就行这边不用配置
         register-enabled: false  # 不注册
         instance-enabled: true  # 我注册了，但我不接客（实例存在，但被标记为 disabled，通常不会被选）
-        # 默认就是 true，一般不要改（适合 k8s）
-        ephemeral: true
+        ephemeral: true  # 默认就是 true，一般不要改, 临时实例
         server-addr: ${nacos.address}
         namespace: ${nacos.namespace}
         group: http   # 和dubbo区分开来
         cluster-name: DEFAULT
+        ip-type: IPv4
+        network-interface: en0  # todo: macOS 一般是 en0，Linux 一般是 eth0
         fail-fast: true # 强依赖nacos失败就不启动
         # 手动注册时必须显式指定
         port: ${server.port}
-        service: ${spring.application.name}
+        service: user-demo   # todo 注意这个后续得用其他方式来弄, 从 context-path: /api/user-demo 里面解析
+#        log-name:    # todo 这个需要关注一下, 默认输出到 ~/logs/nacos/  关闭可能还不是很好关, 要设置 -Dnacos.logging.default.config.enabled=false 或者 System.setProperty
 #        username: ${nacos.username}
 #        password: ${nacos.password}
         # 心跳间隔：5s
@@ -51,7 +55,7 @@ spring:
           version: v1
           # 引用环境变量
           hostname: ${HOSTNAME:unknown}
-          register.source: SPRING_CLOUD
+          context-path: ${server.servlet.context-path}
 
 
 management:

@@ -7,7 +7,7 @@
 		<version>4.3.4-SNAPSHOT</version>
 	</parent>
 	<artifactId>user-demo</artifactId>
-	<name>Archetype - user-demo</name>
+	<name>user-demo</name>
 	<url>http://maven.apache.org</url>
 
 

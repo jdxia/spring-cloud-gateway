@@ -18,6 +18,7 @@ package org.springframework.cloud.gateway.handler;
 
 import java.util.function.Function;
 
+import org.springframework.cloud.gateway.route.CachingRouteLocator;
 import reactor.core.publisher.Mono;
 
 import org.springframework.cloud.gateway.config.GatewayProperties;
@@ -45,6 +46,9 @@ public class RoutePredicateHandlerMapping extends AbstractHandlerMapping {
 
 	private final FilteringWebHandler webHandler;
 
+	/**
+	 * {@link CachingRouteLocator}
+	 */
 	private final RouteLocator routeLocator;
 
 	private final Integer managementPort;
@@ -75,6 +79,9 @@ public class RoutePredicateHandlerMapping extends AbstractHandlerMapping {
 		return environment.getProperty(prefix + "port", Integer.class);
 	}
 
+	/**
+	 * 核心
+	 */
 	@Override
 	protected Mono<?> getHandlerInternal(ServerWebExchange exchange) {
 		// don't handle requests on management port if set and different than server port
@@ -87,17 +94,25 @@ public class RoutePredicateHandlerMapping extends AbstractHandlerMapping {
 
 		return Mono.deferContextual(contextView -> {
 			exchange.getAttributes().put(GATEWAY_REACTOR_CONTEXT_ATTR, contextView);
+
+			// 根据当前的请求匹配路由
 			return lookupRoute(exchange)
 				// .log("route-predicate-handler-mapping", Level.FINER) //name this
+
+					// r 就是匹配到的路由
 				.map((Function<Route, ?>) r -> {
 					exchange.getAttributes().remove(GATEWAY_PREDICATE_ROUTE_ATTR);
 					if (logger.isDebugEnabled()) {
 						logger.debug("Mapping [" + getExchangeDesc(exchange) + "] to " + r);
 					}
 
+					// 把匹配到的路由缓存起来
 					exchange.getAttributes().put(GATEWAY_ROUTE_ATTR, r);
+
+					// 返回 webHandler
 					return webHandler;
 				})
+					// 如果没有匹配到路由, 返回为空的话就是 404
 				.switchIfEmpty(Mono.empty().then(Mono.fromRunnable(() -> {
 					exchange.getAttributes().remove(GATEWAY_PREDICATE_ROUTE_ATTR);
 					ServerWebExchangeUtils.clearCachedRequestBody(exchange);
@@ -128,10 +143,12 @@ public class RoutePredicateHandlerMapping extends AbstractHandlerMapping {
 	}
 
 	protected Mono<Route> lookupRoute(ServerWebExchange exchange) {
+		// 获取所有的路由规则
 		return this.routeLocator.getRoutes().filterWhen(route -> {
 			// add the current route we are testing
 			exchange.getAttributes().put(GATEWAY_PREDICATE_ROUTE_ATTR, route.getId());
 			try {
+				// 调用每个路由器的匹配规则进行判断
 				return route.getPredicate().apply(exchange);
 			}
 			catch (Exception e) {

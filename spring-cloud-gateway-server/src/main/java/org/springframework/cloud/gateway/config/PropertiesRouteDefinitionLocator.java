@@ -28,6 +28,9 @@ public class PropertiesRouteDefinitionLocator implements RouteDefinitionLocator 
 
 	private final GatewayProperties properties;
 
+	/**
+	 * 注入了 GatewayProperties, 这个里面有路由定义
+	 */
 	public PropertiesRouteDefinitionLocator(GatewayProperties properties) {
 		this.properties = properties;
 	}

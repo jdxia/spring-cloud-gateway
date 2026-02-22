@@ -41,6 +41,8 @@ public class GatewayProperties {
 
 	/**
 	 * Properties prefix.
+	 *
+	 * 前缀
 	 */
 	public static final String PREFIX = "spring.cloud.gateway.server.webflux";
 
@@ -48,6 +50,8 @@ public class GatewayProperties {
 
 	/**
 	 * List of Routes.
+	 *
+	 * 路由定义
 	 */
 	@NotNull
 	@Valid
@@ -55,6 +59,8 @@ public class GatewayProperties {
 
 	/**
 	 * List of filter definitions that are applied to every route.
+	 *
+	 * 默认的过滤器
 	 */
 	private List<FilterDefinition> defaultFilters = new ArrayList<>();
 
