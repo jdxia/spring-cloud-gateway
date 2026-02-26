@@ -83,19 +83,14 @@ spring:
           eviction-interval: 20s       # 定期清理空闲连接
           metrics: true                # 启用连接池指标
       routeFilterCacheEnabled: false # 路由过滤器缓存, 这个如果要缓存要注意一下共享变量, 所有请求相关的数据都存储在 ServerWebExchange 的 attributes 中
+      global-filter: # 全局过滤器, 内置默认的
+        reactive-load-balancer-client:
+          enabled: true  # 不想用可以关掉
 #      default-filters: # 默认过滤器, 可以有多个
 #        - StripPrefix=1  # 去掉url里面的第一段进行转发
 #        - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
 #        - RemoveRequestHeader=Cookie  # 根据需要移除敏感头
       routes:
-        # to run server $ wscat --listen 9000
-        # to run client  $ wscat --connect ws://localhost:8080/echo
-#        - id: websocket_test
-#          uri: ws://localhost:9000
-#          order: 9000
-#          predicates:
-#            - Path=/echo
-        # =====================================
         # http://127.0.0.1:8899/api/user-demo/test
         - id: user_route
           uri: lb://user-demo
@@ -112,19 +107,27 @@ spring:
                 prefix: abc
             # PrefixPathGatewayFilterFactory允许你在对应的路由请求前增加前缀。例如实例配置中的请求/user，最后转发到目标服务的路径变为/user/hello
 #            - PrefixPath=/mypath
-        # =====================================
-        # http://127.0.0.1:8899/testSearch
-#        - id: hot_list
-#          uri: https://www.pxb7.com
-#          order: 10000
+# ======================== websocket ==================================================
+        # to run server $ wscat --listen 9000
+        # to run client  $ wscat --connect ws://localhost:8080/echo
+#        - id: websocket_test
+#          uri: ws://localhost:9000
+#          order: 9000
 #          predicates:
-#            - Path=/testSearch
-#          filters:
-#            - SetPath=/api/search/game/selectHotList
-#            - AddRequestParameter=pageIndex, 1
-#            - AddRequestParameter=pageSize, 8
-#            - AddRequestParameter=bizProd, 1
-#            - AddRequestParameter=posType, 3
+#            - Path=/echo
+# =================== 权重 ======================================================
+#        - id: user-service-prod
+#          uri: http://www.iocoder.cn
+#          predicates:
+#            - Path=/**
+#            - Weight=user-service, 90   # 第一个参数为权重分组，需要配置成相同，一般和服务名相同即可；第二个参数为权重比例
+#        - id: user-service-canary
+#          uri: https://www.oschina.net
+#          predicates:
+#            - Path=/**
+#            - Weight=user-service, 10
+
+
 
 
 #logging:
@@ -135,8 +138,6 @@ spring:
 #    org.springframework.cloud.loadbalancer: trace
 #    reactor.ipc.netty: DEBUG
 #    reactor.netty: DEBUG
-
-
 
 
 
