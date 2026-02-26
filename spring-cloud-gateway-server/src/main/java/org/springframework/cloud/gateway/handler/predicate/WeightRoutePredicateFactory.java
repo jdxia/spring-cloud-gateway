@@ -26,6 +26,7 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
 import org.springframework.cloud.gateway.event.WeightDefinedEvent;
+import org.springframework.cloud.gateway.filter.WeightCalculatorWebFilter;
 import org.springframework.cloud.gateway.support.WeightConfig;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.ApplicationEventPublisherAware;
@@ -40,6 +41,11 @@ import static org.springframework.cloud.gateway.support.ServerWebExchangeUtils.W
 // TODO: make this a generic Choose out of group predicate?
 public class WeightRoutePredicateFactory extends AbstractRoutePredicateFactory<WeightConfig>
 		implements ApplicationEventPublisherAware {
+
+	/**
+	 * 这个要和 {@link WeightCalculatorWebFilter} 一起使用
+	 *
+	 */
 
 	/**
 	 * Weight config group key.
@@ -88,6 +94,7 @@ public class WeightRoutePredicateFactory extends AbstractRoutePredicateFactory<W
 			public boolean test(ServerWebExchange exchange) {
 				Map<String, String> weights = exchange.getAttributeOrDefault(WEIGHT_ATTR, Collections.emptyMap());
 
+				// 获取 routeId
 				String routeId = exchange.getAttribute(GATEWAY_PREDICATE_ROUTE_ATTR);
 
 				// all calculations and comparison against random num happened in

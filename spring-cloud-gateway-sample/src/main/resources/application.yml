@@ -100,6 +100,7 @@ spring:
         - id: user_route
           uri: lb://user-demo
           predicates:
+            # 有很多内置的 predicate , https://springdoc.cn/spring-cloud-gateway/#gateway-request-predicates-factories
             - Path=/api/user-demo/**
             - Test1Predicate=GET
 #            - PrefixPath=/api/user-demo  # url前面加一些固定的前缀

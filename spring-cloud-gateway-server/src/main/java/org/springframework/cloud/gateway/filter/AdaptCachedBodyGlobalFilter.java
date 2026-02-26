@@ -55,19 +55,30 @@ public class AdaptCachedBodyGlobalFilter implements GlobalFilter, Ordered, Appli
 			return chain.filter(exchange.mutate().request(cachedRequest).build());
 		}
 
-		//
 		DataBuffer body = exchange.getAttributeOrDefault(CACHED_REQUEST_BODY_ATTR, null);
 		Route route = exchange.getAttribute(GATEWAY_ROUTE_ATTR);
 
+		// 已经缓存过了
 		if (body != null || !this.routesToCache.containsKey(route.getId())) {
 			return chain.filter(exchange);
 		}
 
+		/**
+		 * 1. 第一个参数是当前的请求
+		 * 2. 第二个是个参数
+		 *
+		 * 看 cacheRequestBody
+		 */
 		return ServerWebExchangeUtils.cacheRequestBody(exchange, (serverHttpRequest) -> {
 			// don't mutate and build if same request object
 			if (serverHttpRequest == exchange.getRequest()) {
 				return chain.filter(exchange);
 			}
+
+			/**
+			 * 把当前请求复制一下, 再设置一下serverHttpRequest
+			 * serverHttpRequest 变成了新的 Request对象
+			 */
 			return chain.filter(exchange.mutate().request(serverHttpRequest).build());
 		});
 	}

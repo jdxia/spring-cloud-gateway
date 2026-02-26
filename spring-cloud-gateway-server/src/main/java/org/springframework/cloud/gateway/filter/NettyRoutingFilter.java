@@ -106,15 +106,22 @@ public class NettyRoutingFilter implements GlobalFilter, Ordered {
 		return ORDER;
 	}
 
+	/**
+	 * 在负载均衡之后, 选出一个之后
+	 */
 	@Override
 	@SuppressWarnings("Duplicates")
 	public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
+		// 最终转发的目标 URL
 		URI requestUrl = exchange.getRequiredAttribute(GATEWAY_REQUEST_URL_ATTR);
 
 		String scheme = requestUrl.getScheme();
+		// 看是什么协议
 		if (isAlreadyRouted(exchange) || (!"http".equalsIgnoreCase(scheme) && !"https".equalsIgnoreCase(scheme))) {
 			return chain.filter(exchange);
 		}
+
+		// 设置请求已被路由
 		setAlreadyRouted(exchange);
 
 		ServerHttpRequest request = exchange.getRequest();
@@ -122,6 +129,7 @@ public class NettyRoutingFilter implements GlobalFilter, Ordered {
 		final HttpMethod method = HttpMethod.valueOf(request.getMethod().name());
 		final String url = requestUrl.toASCIIString();
 
+		// http 请求头的过滤器
 		HttpHeaders filtered = filterRequest(getHeadersFilters(), exchange);
 
 		final DefaultHttpHeaders httpHeaders = new DefaultHttpHeaders();
@@ -130,9 +138,14 @@ public class NettyRoutingFilter implements GlobalFilter, Ordered {
 		boolean preserveHost = exchange.getAttributeOrDefault(PRESERVE_HOST_HEADER_ATTRIBUTE, false);
 		Route route = exchange.getAttribute(GATEWAY_ROUTE_ATTR);
 
+		/**
+		 * 先构造http client
+		 */
 		Flux<HttpClientResponse> responseFlux = getHttpClientMono(route, exchange)
 			.flatMapMany(httpClient -> httpClient.headers(headers -> {
 				headers.add(httpHeaders);
+
+				// 移除 host
 				// Will either be set below, or later by Netty
 				headers.remove(HttpHeaders.HOST);
 				if (preserveHost) {
@@ -144,15 +157,21 @@ public class NettyRoutingFilter implements GlobalFilter, Ordered {
 					nettyOutbound.withConnection(connection -> log.trace("outbound route: "
 							+ connection.channel().id().asShortText() + ", inbound: " + exchange.getLogPrefix()));
 				}
+
+				// 发送数据
 				return nettyOutbound.send(request.getBody().map(this::getByteBuf));
 			}).responseConnection((res, connection) -> {
 
+				/**
+				 * 响应的存起来
+				 */
 				// Defer committing the response until all route filters have run
 				// Put client response as ServerWebExchange attribute and write
 				// response later NettyWriteResponseFilter
 				exchange.getAttributes().put(CLIENT_RESPONSE_ATTR, res);
 				exchange.getAttributes().put(CLIENT_RESPONSE_CONN_ATTR, connection);
 
+				// 拿到响应对象
 				ServerHttpResponse response = exchange.getResponse();
 				// put headers and status so filters can modify the response
 				HttpHeaders headers = new HttpHeaders();
@@ -164,6 +183,7 @@ public class NettyRoutingFilter implements GlobalFilter, Ordered {
 					exchange.getAttributes().put(ORIGINAL_RESPONSE_CONTENT_TYPE_ATTR, contentTypeValue);
 				}
 
+				// 设置响应对象的状态
 				setResponseStatus(res, response);
 
 				// make sure headers filters run after setting status so it is
@@ -182,6 +202,7 @@ public class NettyRoutingFilter implements GlobalFilter, Ordered {
 
 				exchange.getAttributes().put(CLIENT_RESPONSE_HEADER_NAMES, filteredResponseHeaders.keySet());
 
+				// 设置 响应头
 				response.getHeaders().addAll(filteredResponseHeaders);
 
 				return Mono.just(res);

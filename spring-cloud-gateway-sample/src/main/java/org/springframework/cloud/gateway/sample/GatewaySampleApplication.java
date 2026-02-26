@@ -3,9 +3,11 @@ package org.springframework.cloud.gateway.sample;
 import java.util.Locale;
 import java.util.Map;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.cloud.client.loadbalancer.reactive.ReactorLoadBalancerExchangeFilterFunction;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.reactive.function.client.WebClient;
+import reactor.blockhound.BlockHound;
 import reactor.core.publisher.Mono;
 
 import org.springframework.beans.factory.annotation.Value;
@@ -29,11 +31,15 @@ import static org.springframework.web.reactive.function.server.RouterFunctions.r
 @SpringBootConfiguration
 @EnableAutoConfiguration
 @ComponentScan("org.springframework.cloud.gateway.sample")
+@Slf4j
 public class GatewaySampleApplication {
 	/**
 	 * 源码先看这几个文件
 	 * 1. 自动装配的 spring-cloud-gateway-server/src/main/resources/META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports
 	 * 2. 其他的一些 spring-cloud-gateway-server/src/main/resources/META-INF/spring.factories
+	 *
+	 *
+	 * 内置谓词都是在这个文件夹里 spring-cloud-gateway-server/src/main/java/org/springframework/cloud/gateway/handler/predicate
 	 *
 	 */
 
@@ -41,12 +47,41 @@ public class GatewaySampleApplication {
 		System.setProperty("nacos.logging.default.config.enabled", "false");
 		System.setProperty("rocketmq.client.logUseSlf4j", "true");
 
+		/**
+		 * 检测Reactor/Netty IO 线程上的阻塞操作
+		 * 要添加 <artifactId>blockhound</artifactId>
+		 *
+		 * JDK 17+ 需要额外 JVM 参数，
+		 *
+		 * 因为模块系统限制了反射访问： --add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.util.concurrent=ALL-UNNAMED
+		 * 下面是全一点的
+		 * --add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.util.concurrent=ALL-UNNAMED --add-opens java.base/java.io=ALL-UNNAMED --add-opens java.base/java.math=ALL-UNNAMED --add-opens java.base/java.net=ALL-UNNAMED --add-opens java.base/java.nio=ALL-UNNAMED --add-opens java.base/java.security=ALL-UNNAMED --add-opens java.base/java.text=ALL-UNNAMED --add-opens java.base/java.time=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED --add-opens java.base/jdk.internal.access=ALL-UNNAMED --add-opens java.base/jdk.internal.misc=ALL-UNNAMED --add-opens java.base/java.lang.reflect=ALL-UNNAMED --add-opens java.base/jdk.internal.perf=ALL-UNNAMED --add-exports java.base/jdk.internal.perf=ALL-UNNAMED --add-opens java.management/sun.management.counter.perf=ALL-UNNAMED --add-opens java.management/sun.management.counter=ALL-UNNAMED
+		 *
+		 *  还需要加 -XX:+AllowRedefinitionToAddDeleteMethods
+		 */
+
+		/**
+		 * 检测IO线程上的阻塞调用，生产环境务必移除
+		 * 不用 BlockHound.install() 是因为它会走 ServiceLoader 自动发现,
+		 * Nacos shaded jar 里注册了一个找不到的 BlockHound SPI 类会导致启动失败
+		 */
+		BlockHound.builder()
+				// 白名单
+				.allowBlockingCallsInside("ch.qos.logback.classic.Logger", "callAppenders")
+				// 只打日志不抛异常，记录完整堆栈
+				.blockingMethodCallback(m -> {
+					Error error = new Error(m.toString());
+					log.error("[BlockHound] 检测到IO线程阻塞调用", error);
+				})
+				.install();
+
 		SpringApplication.run(GatewaySampleApplication.class, args);
 	}
 
+
 	/**
-	 * 支持负载均衡
-	 */
+     * 支持负载均衡
+     */
 	@Bean
 	public WebClient webLBClient(ReactorLoadBalancerExchangeFilterFunction lb) {
 		return WebClient.builder()

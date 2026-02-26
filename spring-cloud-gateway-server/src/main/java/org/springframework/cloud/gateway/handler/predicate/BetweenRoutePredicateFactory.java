@@ -59,6 +59,7 @@ public class BetweenRoutePredicateFactory extends AbstractRoutePredicateFactory<
 			@Override
 			public boolean test(ServerWebExchange serverWebExchange) {
 				final ZonedDateTime now = ZonedDateTime.now();
+				// 是不是配置的时间中间
 				return now.isAfter(config.getDatetime1()) && now.isBefore(config.getDatetime2());
 			}
 

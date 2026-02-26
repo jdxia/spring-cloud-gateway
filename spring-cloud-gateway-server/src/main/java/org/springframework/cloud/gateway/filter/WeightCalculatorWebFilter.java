@@ -55,6 +55,8 @@ import static org.springframework.cloud.gateway.support.ServerWebExchangeUtils.W
 /**
  * @author Spencer Gibb
  * @author Alexey Nakidkin
+ *
+ * 这是一个 WebFilter , 先走 WebFilter 再走 dispatch
  */
 public class WeightCalculatorWebFilter implements WebFilter, Ordered, SmartApplicationListener {
 
@@ -138,7 +140,9 @@ public class WeightCalculatorWebFilter implements WebFilter, Ordered, SmartAppli
 
 	@Override
 	public void onApplicationEvent(ApplicationEvent event) {
+		// 匹配器参数的事件, 可能有多次
 		if (event instanceof PredicateArgsEvent) {
+			// 往下
 			handle((PredicateArgsEvent) event);
 		}
 		else if (event instanceof WeightDefinedEvent) {
@@ -174,6 +178,7 @@ public class WeightCalculatorWebFilter implements WebFilter, Ordered, SmartAppli
 
 		this.configurationService.with(config).name(WeightConfig.CONFIG_PREFIX).normalizedProperties(args).bind();
 
+		// 往下
 		addWeightConfig(config);
 	}
 
@@ -274,6 +279,7 @@ public class WeightCalculatorWebFilter implements WebFilter, Ordered, SmartAppli
 				log.trace("Weight for group: " + group + ", ranges: " + ranges + ", r: " + r);
 			}
 
+			// 看落在那个区间, 走那个 routeId
 			for (int i = 0; i < ranges.size() - 1; i++) {
 				if (r >= ranges.get(i) && r < ranges.get(i + 1)) {
 					String routeId = config.rangeIndexes.get(i);

@@ -50,6 +50,7 @@ public class BeforeRoutePredicateFactory extends AbstractRoutePredicateFactory<B
 			@Override
 			public boolean test(ServerWebExchange serverWebExchange) {
 				final ZonedDateTime now = ZonedDateTime.now();
+				// 是不是配置的时间之前
 				return now.isBefore(config.getDatetime());
 			}
 

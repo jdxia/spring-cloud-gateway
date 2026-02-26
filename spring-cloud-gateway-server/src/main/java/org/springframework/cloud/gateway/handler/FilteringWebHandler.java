@@ -103,17 +103,31 @@ public class FilteringWebHandler implements WebHandler, ApplicationListener<Refr
 
 	@Override
 	public Mono<Void> handle(ServerWebExchange exchange) {
+		/**
+		 * 获取匹配到的路由
+		 */
 		Route route = exchange.getRequiredAttribute(GATEWAY_ROUTE_ATTR);
+
+		/**
+		 * 获取所有filter, 并排序好
+		 * 包括全局过滤器
+		 */
 		List<GatewayFilter> combined = getCombinedFilters(route);
 
 		if (logger.isDebugEnabled()) {
 			logger.debug("Sorted gatewayFilterFactories: " + combined);
 		}
 
+		/**
+		 * 责任链, 从外到里 依次执行, combined 这是个list
+		 *
+		 * 如果下游响应的话, 从里到外触发 doOnSuccess / doOnError 等回调
+		 */
 		return new DefaultGatewayFilterChain(combined).filter(exchange);
 	}
 
 	protected List<GatewayFilter> getCombinedFilters(Route route) {
+		// 如果开启缓存
 		if (this.routeFilterCacheEnabled) {
 			return routeFilterMap.computeIfAbsent(route, this::getAllFilters);
 		}

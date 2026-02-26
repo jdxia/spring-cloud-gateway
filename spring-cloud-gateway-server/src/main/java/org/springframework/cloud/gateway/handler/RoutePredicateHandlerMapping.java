@@ -84,12 +84,20 @@ public class RoutePredicateHandlerMapping extends AbstractHandlerMapping {
 	 */
 	@Override
 	protected Mono<?> getHandlerInternal(ServerWebExchange exchange) {
+		/**
+		 * 管理端口处理
+		 * 如果配置了独立的管理端口(如actuator)，且当前请求来自管理端口
+		 * 则不处理该请求，返回empty让其他HandlerMapping处理
+		 */
 		// don't handle requests on management port if set and different than server port
 		if (this.managementPortType == DIFFERENT && this.managementPort != null
 				&& exchange.getRequest().getLocalAddress() != null
 				&& exchange.getRequest().getLocalAddress().getPort() == this.managementPort) {
+			// 返回empty = 当前Handler不处理
 			return Mono.empty();
 		}
+
+		// GATEWAY_HANDLER_MAPPER_ATTR 记录是哪个HandlerMapping处理了这个请求，用于调试和追踪
 		exchange.getAttributes().put(GATEWAY_HANDLER_MAPPER_ATTR, getSimpleName());
 
 		return Mono.deferContextual(contextView -> {
@@ -99,17 +107,29 @@ public class RoutePredicateHandlerMapping extends AbstractHandlerMapping {
 			return lookupRoute(exchange)
 				// .log("route-predicate-handler-mapping", Level.FINER) //name this
 
-					// r 就是匹配到的路由
+					// r 就是匹配到的路由, 匹配成功的处理
 				.map((Function<Route, ?>) r -> {
+					/**
+					 * 清除临时的predicate路由ID属性
+					 * 因为已经匹配成功，不需要再记录"正在测试哪个路由"
+					 */
 					exchange.getAttributes().remove(GATEWAY_PREDICATE_ROUTE_ATTR);
 					if (logger.isDebugEnabled()) {
 						logger.debug("Mapping [" + getExchangeDesc(exchange) + "] to " + r);
 					}
 
-					// 把匹配到的路由缓存起来
+					/**
+					 * 把匹配到的路由缓存起来
+					 * r 是 匹配到的 router
+					 *
+					 * GATEWAY_ROUTE_ATTR 放的就是 匹配成功后存储最终选中的路由对象
+					 */
 					exchange.getAttributes().put(GATEWAY_ROUTE_ATTR, r);
 
-					// 返回 webHandler
+					/**
+					 * 返回webHandler，它是FilteringWebHandler实例
+					 * Spring WebFlux会调用这个handler的handle方法 {@link FilteringWebHandler#handle(ServerWebExchange)}
+					 */
 					return webHandler;
 				})
 					// 如果没有匹配到路由, 返回为空的话就是 404
@@ -143,12 +163,27 @@ public class RoutePredicateHandlerMapping extends AbstractHandlerMapping {
 	}
 
 	protected Mono<Route> lookupRoute(ServerWebExchange exchange) {
-		// 获取所有的路由规则
+		/**
+		 * 从RouteLocator获取所有路由定义
+		 * routeLocator通常是CachingRouteLocator(带缓存)
+		 */
 		return this.routeLocator.getRoutes().filterWhen(route -> {
+
+			/**
+			 * 在predicate执行前，先设置当前正在测试的路由ID
+			 * 这样predicate内部可以知道 当前是哪个路由在匹配
+			 *
+			 * GATEWAY_PREDICATE_ROUTE_ATTR: 路由匹配过程中临时存储正在测试的路由ID, 值是 String (routeId)
+			 * 和 GATEWAY_ROUTE_ATTR 不一样, 这是匹配成功后存储最终选中的路由对象 值是  Route 对象
+			 */
 			// add the current route we are testing
 			exchange.getAttributes().put(GATEWAY_PREDICATE_ROUTE_ATTR, route.getId());
 			try {
-				// 调用每个路由器的匹配规则进行判断
+
+				/**
+				 * 调用每个路由器的匹配规则进行判断
+				 * predicate.apply(exchange) 返回 Mono<Boolean>
+				 */
 				return route.getPredicate().apply(exchange);
 			}
 			catch (Exception e) {
@@ -156,12 +191,15 @@ public class RoutePredicateHandlerMapping extends AbstractHandlerMapping {
 			}
 			return Mono.just(false);
 		})
+				// .next() 只取第一个匹配的路由
 			.next()
 			// TODO: error handling
 			.map(route -> {
 				if (logger.isDebugEnabled()) {
 					logger.debug("Route matched: " + route.getId());
 				}
+
+				// 验证路由(默认空实现，是扩展点)
 				validateRoute(route, exchange);
 				return route;
 			});

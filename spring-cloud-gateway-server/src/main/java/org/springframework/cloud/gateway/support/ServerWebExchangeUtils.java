@@ -31,6 +31,7 @@ import java.util.function.Predicate;
 import io.netty.buffer.Unpooled;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.springframework.cloud.gateway.filter.RouteToRequestUrlFilter;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -67,6 +68,12 @@ public final class ServerWebExchangeUtils {
 
 	/**
 	 * Preserve-Host header attribute name.
+	 *
+	 * 是否保留原始 Host 头, 存储的值类型：Boolean
+	 * 某些后端服务（如基于虚拟主机的服务）依赖 Host 头来路由请求。如果不设置这个，Gateway 转发时会把 Host 改成下游服务的地址，导致后端路由失败
+	 *
+	 * filters:
+	 *  - PreserveHostHeader
 	 */
 	public static final String PRESERVE_HOST_HEADER_ATTRIBUTE = qualify("preserveHostHeader");
 
@@ -77,11 +84,15 @@ public final class ServerWebExchangeUtils {
 
 	/**
 	 * Client response attribute name.
+	 *
+	 * 下游服务的响应对象
 	 */
 	public static final String CLIENT_RESPONSE_ATTR = qualify("gatewayClientResponse");
 
 	/**
 	 * Client response connection attribute name.
+	 *
+	 * Netty 连接对象
 	 */
 	public static final String CLIENT_RESPONSE_CONN_ATTR = qualify("gatewayClientResponseConnection");
 
@@ -92,6 +103,11 @@ public final class ServerWebExchangeUtils {
 
 	/**
 	 * Gateway route attribute name.
+	 *
+	 * 当前匹配的路由, 核心属性, 存储的值类型：Route
+	 * 找到第一个匹配的路由，然后把这个 Route 对象放进这里
+	 *
+	 * 很多 filter 都会读取这个
 	 */
 	public static final String GATEWAY_ROUTE_ATTR = qualify("gatewayRoute");
 
@@ -102,42 +118,76 @@ public final class ServerWebExchangeUtils {
 
 	/**
 	 * Gateway request URL attribute name.
+	 *
+	 * 最终转发的目标 URL, 存储的值类型：URI
+	 * 把原始请求 URL 和路由定义的目标 URI 合并后 得到最终的转发目标 URL
+	 * 由 {@link RouteToRequestUrlFilter} 设置, 他的order 是 ROUTE_TO_URL_FILTER_ORDER
+	 *
+	 * 几乎所有路由类Filter 都依赖它来决定往哪里发请求
 	 */
 	public static final String GATEWAY_REQUEST_URL_ATTR = qualify("gatewayRequestUrl");
 
 	/**
 	 * Gateway original request URL attribute name.
+	 *
+	 * 原始请求 URL 集合, 存储的值类型：LinkedHashSet<URI>
+	 * 每当有Filter 修改了请求 URL（如 RewritePathGatewayFilterFactory、StripPrefixGatewayFilterFactory、PrefixPathGatewayFilterFactory 等），
+	 *  都会先调用 addOriginalRequestUrl() 把修改前的 URL 保存到这个集合中
 	 */
 	public static final String GATEWAY_ORIGINAL_REQUEST_URL_ATTR = qualify("gatewayOriginalRequestUrl");
 
 	/**
 	 * Gateway handler mapper attribute name.
+	 *
+	 * 处理请求的 HandlerMapping
+	 * 存储的值类型：String（HandlerMapping 的类名）
+	 *
+	 * 由 RoutePredicateHandlerMapping.getHandlerInternal() 设置，值为当前 HandlerMapping 的简单类名。主要用于调试和 metrics，让你知道请求是被哪个 HandlerMapping 处理的
 	 */
 	public static final String GATEWAY_HANDLER_MAPPER_ATTR = qualify("gatewayHandlerMapper");
 
 	/**
 	 * Gateway scheme prefix attribute name.
+	 *
+	 * 路由 URI 的 scheme 前缀
+	 * 存储的值类型：String
+	 * 由 RouteToRequestUrlFilter 设置。当路由配置使用了 lb:http:// 这种复合 scheme 时，lb 会被提取出来放到这个属性中：
 	 */
 	public static final String GATEWAY_SCHEME_PREFIX_ATTR = qualify("gatewaySchemePrefix");
 
 	/**
 	 * Gateway predicate route attribute name.
+	 *
+	 * 谓词匹配阶段的路由 ID
+	 * 存储的值类型：String（路由 ID）
+	 * 在 RoutePredicateHandlerMapping.lookupRoute() 中设置，在谓词匹配阶段把当前正在尝试匹配的路由 ID 放进去。PathRoutePredicateFactory 和 WeightRoutePredicateFactory 会读取它。
+	 * 这个属性的作用是让Predicate 知道自己正在为哪个路由做匹配，这在 WeightRoutePredicateFactory 中尤其重要——它需要知道路由 ID 才能做权重计算
 	 */
 	public static final String GATEWAY_PREDICATE_ROUTE_ATTR = qualify("gatewayPredicateRouteAttr");
 
 	/**
 	 * Gateway predicate matched path attribute name.
+	 *
+	 * Path谓词匹配到的路径模式
+	 * 存储的值类型：String（路径模式，如 /api/**）
+	 * 由 PathRoutePredicateFactory 在路径匹配成功后设置，记录匹配到的路径模式。GatewayPathTagsProvider 用它来给 metrics 打 path 标签
 	 */
 	public static final String GATEWAY_PREDICATE_MATCHED_PATH_ATTR = qualify("gatewayPredicateMatchedPathAttr");
 
 	/**
 	 * Gateway predicate matched path route id attribute name.
+	 *
+	 * 匹配路径对应的路由 ID
 	 */
 	public static final String GATEWAY_PREDICATE_MATCHED_PATH_ROUTE_ID_ATTR = qualify(
 			"gatewayPredicateMatchedPathRouteIdAttr");
 
 	/**
 	 * Gateway predicate path container attribute name.
+	 *
+	 * Path 谓词的路径容器
+	 * 存储的值类型：PathContainer
+	 * 由 PathRoutePredicateFactory 设置，存储解析后的请求路径
 	 */
 	public static final String GATEWAY_PREDICATE_PATH_CONTAINER_ATTR = qualify("gatewayPredicatePathContainer");
 
@@ -159,6 +209,15 @@ public final class ServerWebExchangeUtils {
 	/**
 	 * Used when a routing filter has been successfully called. Allows users to write
 	 * custom routing filters that disable built in routing filters.
+	 *
+	 * 请求是否已被路由
+	 * 存储的值类型：Boolean
+	 * 这是一个防重复路由的标志位。当某个路由 Filter（如 NettyRoutingFilter、WebClientHttpRoutingFilter、ForwardRoutingFilter）成功处理了请求后，
+	 * 会调用 setAlreadyRouted(exchange) 将其设为 true。
+	 * 其他路由 Filter 在执行前会先调用 isAlreadyRouted(exchange) 检查，如果已经路由过了就直接跳过。这样可以避免请求被多个路由 Filter 重复转发
+	 *
+	 * 如果你写了自定义路由 Filter，必须在成功路由后调用 setAlreadyRouted()，否则内置的路由 Filter 还会再转发一次。
+	 * 同样，如果你想实现重试逻辑，需要先调用 removeAlreadyRouted() 清除标志。RetryGatewayFilterFactory 的 reset() 方法就是这么做的。
 	 */
 	public static final String GATEWAY_ALREADY_ROUTED_ATTR = qualify("gatewayAlreadyRouted");
 
@@ -170,6 +229,8 @@ public final class ServerWebExchangeUtils {
 	/**
 	 * Cached ServerHttpRequestDecorator attribute name. Used when
 	 * {@link #cacheRequestBodyAndRequest(ServerWebExchange, Function)} is called.
+	 *
+	 * 缓存请求体
 	 */
 	public static final String CACHED_SERVER_HTTP_REQUEST_DECORATOR_ATTR = "cachedServerHttpRequestDecorator";
 
@@ -361,6 +422,7 @@ public final class ServerWebExchangeUtils {
 	 */
 	public static <T> Mono<T> cacheRequestBody(ServerWebExchange exchange,
 			Function<ServerHttpRequest, Mono<T>> function) {
+		// 往下
 		return cacheRequestBody(exchange, false, function);
 	}
 
@@ -392,9 +454,13 @@ public final class ServerWebExchangeUtils {
 		DataBufferFactory factory = response.bufferFactory();
 		// Join all the DataBuffers so we have a single DataBuffer for the body
 		return DataBufferUtils.join(exchange.getRequest().getBody())
+				// 如果请求体是空的, 会创建一个空的 DataBuffer 对象
 			.defaultIfEmpty(factory.wrap(EMPTY_BYTES))
+				// decorate 包装了一下, 然后调用外面的function
 			.map(dataBuffer -> decorate(exchange, dataBuffer, cacheDecoratedRequest))
+				//如果是空, 这边就直接把 原始的请求返回
 			.switchIfEmpty(Mono.just(exchange.getRequest()))
+				// 调用外面的function
 			.flatMap(function);
 	}
 
@@ -405,6 +471,8 @@ public final class ServerWebExchangeUtils {
 	 */
 	public static void clearCachedRequestBody(ServerWebExchange exchange) {
 		Object attribute = exchange.getAttributes().remove(CACHED_REQUEST_BODY_ATTR);
+
+		// 如果是这个类型就会进行回收
 		if (attribute != null && attribute instanceof PooledDataBuffer) {
 			PooledDataBuffer dataBuffer = (PooledDataBuffer) attribute;
 			if (dataBuffer.isAllocated()) {
@@ -421,6 +489,7 @@ public final class ServerWebExchangeUtils {
 
 	private static ServerHttpRequest decorate(ServerWebExchange exchange, DataBuffer dataBuffer,
 			boolean cacheDecoratedRequest) {
+		// 判断有内容
 		if (dataBuffer.readableByteCount() > 0) {
 			if (log.isTraceEnabled()) {
 				log.trace("retaining body in exchange attribute");
@@ -433,6 +502,7 @@ public final class ServerWebExchangeUtils {
 			}
 		}
 
+		// 生成新的 Request对象, 返回出去
 		ServerHttpRequest decorator = new ServerHttpRequestDecorator(exchange.getRequest()) {
 			@Override
 			public Flux<DataBuffer> getBody() {
@@ -443,10 +513,12 @@ public final class ServerWebExchangeUtils {
 					}
 					if (dataBuffer instanceof NettyDataBuffer) {
 						NettyDataBuffer pdb = (NettyDataBuffer) dataBuffer;
+						// 复制了一下
 						return pdb.factory().wrap(pdb.getNativeBuffer().retainedSlice());
 					}
 					else if (dataBuffer instanceof DefaultDataBuffer) {
 						DefaultDataBuffer ddf = (DefaultDataBuffer) dataBuffer;
+						// 复制了一下
 						return ddf.factory().wrap(Unpooled.wrappedBuffer(ddf.getNativeBuffer()).nioBuffer());
 					}
 					else {

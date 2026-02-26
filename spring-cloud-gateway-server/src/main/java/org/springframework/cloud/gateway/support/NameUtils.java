@@ -53,6 +53,13 @@ public final class NameUtils {
 	}
 
 	public static String normalizeFilterFactoryName(Class<? extends GatewayFilterFactory> clazz) {
+		/**
+		 * clazz.getSimpleName() - 获取类的简单名称，比如 AddRequestHeaderGatewayFilterFactory
+		 * .replace("GatewayFilterFactory", "") - 把后缀去掉
+		 *
+		 * 当你在单元测试中使用 Mockito 框架 mock 一个类时，Mockito 会动态生成一个代理类，类名会变成类似这样： AddRequestHeaderGatewayFilterFactory$MockitoMock$123456789
+		 * removeGarbage 方法会把 $MockitoMock$123456789 这部分去掉
+		 */
 		return removeGarbage(clazz.getSimpleName().replace(GatewayFilterFactory.class.getSimpleName(), ""));
 	}
 

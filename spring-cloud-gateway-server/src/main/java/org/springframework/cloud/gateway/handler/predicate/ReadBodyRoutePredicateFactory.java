@@ -65,6 +65,9 @@ public class ReadBodyRoutePredicateFactory extends AbstractRoutePredicateFactory
 			public Publisher<Boolean> apply(ServerWebExchange exchange) {
 				Class inClass = config.getInClass();
 
+				/**
+				 * 从这里看有没有缓存请求体
+				 */
 				Object cachedBody = exchange.getAttribute(CACHE_REQUEST_BODY_OBJECT_KEY);
 				Mono<?> modifiedBody;
 				// We can only read the body from the request once, once that happens if
@@ -91,9 +94,11 @@ public class ReadBodyRoutePredicateFactory extends AbstractRoutePredicateFactory
 					return ServerWebExchangeUtils.cacheRequestBodyAndRequest(exchange,
 							(serverHttpRequest) -> ServerRequest
 								.create(exchange.mutate().request(serverHttpRequest).build(), messageReaders)
+									// 把请求体转成这个类型, 可以配置的
 								.bodyToMono(inClass)
 								.doOnNext(objectValue -> exchange.getAttributes()
 									.put(CACHE_REQUEST_BODY_OBJECT_KEY, objectValue))
+									// 判断
 								.map(objectValue -> config.getPredicate().test(objectValue)));
 				}
 			}

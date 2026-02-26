@@ -26,7 +26,16 @@ public class RemoveCachedBodyFilter implements GlobalFilter, Ordered {
 
 	@Override
 	public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
-		return chain.filter(exchange).doFinally(s -> ServerWebExchangeUtils.clearCachedRequestBody(exchange));
+		/**
+		 * {@link AdaptCachedBodyGlobalFilter} 这个是缓存
+		 *
+		 * 这个意思就是先调用下一个过滤器, 然后最后再执行这个
+		 * 无论结果如何，当整个流结束时，一定会执行
+		 */
+		return chain.filter(exchange).doFinally(s ->
+
+				// 移除缓存的请求体
+				ServerWebExchangeUtils.clearCachedRequestBody(exchange));
 	}
 
 	@Override

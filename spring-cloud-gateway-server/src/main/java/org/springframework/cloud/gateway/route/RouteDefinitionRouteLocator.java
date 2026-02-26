@@ -204,6 +204,7 @@ public class RouteDefinitionRouteLocator implements RouteLocator {
 			filters.addAll(loadGatewayFilters(routeDefinition.getId(), definitionFilters));
 		}
 
+		// 排序
 		AnnotationAwareOrderComparator.sort(filters);
 		return filters;
 	}
@@ -218,7 +219,7 @@ public class RouteDefinitionRouteLocator implements RouteLocator {
 
 		return predicates.stream()
 			.map(nextPredicate -> lookup(routeDefinition, nextPredicate))
-				// 每个都是 and
+				// 迭代, 每个都是 and
 			.reduce(AsyncPredicate.from(exchange -> true), AsyncPredicate::and);
 	}
 
@@ -235,7 +236,10 @@ public class RouteDefinitionRouteLocator implements RouteLocator {
 		}
 
 
-		// 根据配置的参数 生成工厂里面的 配置对象
+		/**
+		 * 根据配置的参数 生成工厂里面的 配置对象
+		 * 生成 PredicateArgsEvent 事件, 在 bind 里面 发事件
+		 */
 		// @formatter:off
 		Object config = this.configurationService.with(factory)
 				.name(predicate.getName())

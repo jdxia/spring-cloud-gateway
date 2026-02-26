@@ -53,6 +53,7 @@ public class CloudFoundryRouteServiceRoutePredicateFactory extends AbstractRoute
 
 	@Override
 	public Predicate<ServerWebExchange> apply(Object unused) {
+		// 看某个请求是不是 某个云平台发来的
 		return headerPredicate(X_CF_FORWARDED_URL).and(headerPredicate(X_CF_PROXY_SIGNATURE))
 			.and(headerPredicate(X_CF_PROXY_METADATA));
 	}

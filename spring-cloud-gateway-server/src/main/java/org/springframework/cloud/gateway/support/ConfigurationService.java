@@ -245,6 +245,7 @@ public class ConfigurationService implements ApplicationEventPublisherAware {
 
 			if (this.eventFunction != null && this.service.publisher != null) {
 				ApplicationEvent applicationEvent = this.eventFunction.apply(bound, this.normalizedProperties);
+				// 发事件
 				this.service.publisher.publishEvent(applicationEvent);
 			}
 

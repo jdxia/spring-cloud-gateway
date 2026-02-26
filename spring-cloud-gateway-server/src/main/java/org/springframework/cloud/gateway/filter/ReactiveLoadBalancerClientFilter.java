@@ -117,6 +117,10 @@ public class ReactiveLoadBalancerClientFilter implements GlobalFilter, Ordered {
 		// 构造一个负载均衡
 		DefaultRequest<RequestDataContext> lbRequest = new DefaultRequest<>(new RequestDataContext(
 				new RequestData(exchange.getRequest(), exchange.getAttributes()), getHint(serviceId)));
+
+		/**
+		 *
+		 */
 		return choose(lbRequest, serviceId, supportedLifecycleProcessors).doOnNext(response -> {
 
 			if (!response.hasServer()) {

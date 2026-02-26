@@ -266,11 +266,18 @@ public class GatewayAutoConfiguration {
 	}
 
 
+	/**
+	 * 参数注入的很多都是工厂
+	 * 这边不包含全局的filter
+	 */
 	@Bean
 	public RouteLocator routeDefinitionRouteLocator(GatewayProperties properties,
 			List<GatewayFilterFactory> gatewayFilters, List<RoutePredicateFactory> predicates,
 			RouteDefinitionLocator routeDefinitionLocator, ConfigurationService configurationService) {
-		// 根据所有路由定义 和 拦截器 以及 属性 创建一个 RouteDefinitionRouteLocator
+		/**
+		 * 根据所有路由定义 和 拦截器 以及 属性 创建一个 RouteDefinitionRouteLocator
+		 * 这个对象最关键的就是 {@link RouteDefinitionRouteLocator#getRoutes()} 得到Route对象
+		 */
 		return new RouteDefinitionRouteLocator(routeDefinitionLocator, predicates, gatewayFilters, properties,
 				configurationService);
 	}
@@ -284,7 +291,9 @@ public class GatewayAutoConfiguration {
 	@ConditionalOnMissingBean(name = "cachedCompositeRouteLocator")
 	// TODO: property to disable composite?
 	public RouteLocator cachedCompositeRouteLocator(List<RouteLocator> routeLocators) {
-		// 把解析出来的路由对象缓存起来
+		/**
+		 * 把解析出来的路由对象缓存起来
+		 */
 		return new CachingRouteLocator(new CompositeRouteLocator(Flux.fromIterable(routeLocators)));
 	}
 
@@ -326,6 +335,9 @@ public class GatewayAutoConfiguration {
 		return new RoutePredicateHandlerMapping(webHandler, routeLocator, globalCorsProperties, environment);
 	}
 
+	/**
+	 * 这是配置文件解析
+	 */
 	@Bean
 	public GatewayProperties gatewayProperties() {
 		return new GatewayProperties();

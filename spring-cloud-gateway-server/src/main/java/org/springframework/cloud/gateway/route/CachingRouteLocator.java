@@ -23,6 +23,7 @@ import java.util.stream.Collectors;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.springframework.cloud.gateway.config.GatewayAutoConfiguration;
 import reactor.cache.CacheFlux;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -56,10 +57,23 @@ public class CachingRouteLocator
 
 	public CachingRouteLocator(RouteLocator delegate) {
 		this.delegate = delegate;
+
+		/**
+		 * 缓存的key  CACHE_KEY 是 routes
+		 * 缓存的对象是 private final Map<String, List> cache = new ConcurrentHashMap<>(); 是一个list
+		 *
+		 * 看下 {@link CachingRouteLocator#fetch()}
+		 */
 		routes = CacheFlux.lookup(cache, CACHE_KEY, Route.class).onCacheMissResume(this::fetch);
 	}
 
 	private Flux<Route> fetch() {
+		/**
+		 * delegate 看构造函数 {@link CachingRouteLocator#CachingRouteLocator(RouteLocator)}
+		 * 是在这里调用的构造函数 {@link GatewayAutoConfiguration#cachedCompositeRouteLocator(List)}
+		 *
+		 * 而这边的 getRoutes() 就是 Flux.fromIterable(routeLocators) 所有的routeLocators, 然后进行排序
+		 */
 		return this.delegate.getRoutes().sort(AnnotationAwareOrderComparator.INSTANCE);
 	}
 
