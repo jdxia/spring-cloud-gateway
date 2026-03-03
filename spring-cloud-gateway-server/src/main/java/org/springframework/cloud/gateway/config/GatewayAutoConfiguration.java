@@ -200,6 +200,7 @@ import org.springframework.web.reactive.socket.server.upgrade.ReactorNettyReques
  * @author FuYiNan Guo
  */
 @Configuration(proxyBeanMethods = false)
+// 默认开启
 @ConditionalOnProperty(name = "spring.cloud.gateway.server.webflux.enabled", matchIfMissing = true)
 @EnableConfigurationProperties
 @AutoConfigureBefore({ HttpHandlerAutoConfiguration.class, WebFluxAutoConfiguration.class })
@@ -804,6 +805,7 @@ public class GatewayAutoConfiguration {
 
 	}
 
+	// 初始化 NettyConfiguration
 	@Configuration(proxyBeanMethods = false)
 	@ConditionalOnClass(HttpClient.class)
 	protected static class NettyConfiguration {

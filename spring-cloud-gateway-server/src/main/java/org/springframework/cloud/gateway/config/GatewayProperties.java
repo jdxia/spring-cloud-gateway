@@ -35,7 +35,7 @@ import org.springframework.validation.annotation.Validated;
 /**
  * @author Spencer Gibb
  */
-@ConfigurationProperties(GatewayProperties.PREFIX)
+@ConfigurationProperties(GatewayProperties.PREFIX) // 绑定 spring.cloud.gateway.server.webflux
 @Validated
 public class GatewayProperties {
 
@@ -49,6 +49,7 @@ public class GatewayProperties {
 	private final Log logger = LogFactory.getLog(getClass());
 
 	/**
+	 * 用来对 Route 进行定义
 	 * List of Routes.
 	 *
 	 * 路由定义
@@ -60,7 +61,7 @@ public class GatewayProperties {
 	/**
 	 * List of filter definitions that are applied to every route.
 	 *
-	 * 默认的过滤器
+	 * 用于定义默认的 Filter 列表，默认的 Filter 会应用到每一个 Route 上，gateway 处理时会将其与 Route 中指定的 Filter 进行合并后并逐个执行
 	 */
 	private List<FilterDefinition> defaultFilters = new ArrayList<>();
 

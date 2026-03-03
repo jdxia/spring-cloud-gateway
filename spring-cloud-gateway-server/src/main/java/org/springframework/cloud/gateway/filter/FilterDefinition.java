@@ -33,14 +33,22 @@ import static org.springframework.util.StringUtils.tokenizeToStringArray;
 @Validated
 public class FilterDefinition {
 
+	// 定义了 Filter 的名称，符合特定的命名规范，为对应的工厂名前缀
 	@NotNull
 	private String name;
 
+	// 一个键值对参数用于构造 Filter 对象
 	private Map<String, String> args = new LinkedHashMap<>();
 
 	public FilterDefinition() {
 	}
 
+	/**
+	 * 根据 text 创建 FilterDefinition
+	 *
+	 * @param text 格式 ${name}=${args[0]},${args[1]}...${args[n]}
+	 *             例如 AddRequestParameter=foo, bar
+	 */
 	public FilterDefinition(String text) {
 		int eqIdx = text.indexOf('=');
 		if (eqIdx <= 0) {

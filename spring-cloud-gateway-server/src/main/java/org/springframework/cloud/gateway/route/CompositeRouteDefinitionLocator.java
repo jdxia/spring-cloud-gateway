@@ -34,6 +34,9 @@ public class CompositeRouteDefinitionLocator implements RouteDefinitionLocator {
 
 	private static final Log log = LogFactory.getLog(CompositeRouteDefinitionLocator.class);
 
+	/**
+	 * RouteDefinitionLocator 数组
+	 */
 	private final Flux<RouteDefinitionLocator> delegates;
 
 	private final IdGenerator idGenerator;

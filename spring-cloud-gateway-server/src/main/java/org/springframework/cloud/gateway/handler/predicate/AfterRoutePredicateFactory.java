@@ -44,6 +44,7 @@ public class AfterRoutePredicateFactory extends AbstractRoutePredicateFactory<Af
 		return Collections.singletonList(DATETIME_KEY);
 	}
 
+	// 生产 Predicate 对象，逻辑是判断当前时间（执行时）是否在 Config 中指定的 datetime之后
 	@Override
 	public Predicate<ServerWebExchange> apply(Config config) {
 		return new GatewayPredicate() {
@@ -65,6 +66,7 @@ public class AfterRoutePredicateFactory extends AbstractRoutePredicateFactory<Af
 		};
 	}
 
+	// 该配置类只包含一个datetime时间字符串属性
 	public static class Config {
 
 		@NotNull

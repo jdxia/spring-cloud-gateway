@@ -40,6 +40,7 @@ import static org.springframework.util.StringUtils.tokenizeToStringArray;
 @Validated
 public class RouteDefinition {
 
+	// 定义 Route 的 id，默认使用 UUID
 	private String id;
 
 	/**
@@ -55,6 +56,9 @@ public class RouteDefinition {
 	@Valid
 	private List<FilterDefinition> filters = new ArrayList<>();
 
+	/**
+	 * 定义目的地 URI
+	 */
 	@NotNull
 	private URI uri;
 
@@ -70,6 +74,12 @@ public class RouteDefinition {
 	public RouteDefinition() {
 	}
 
+
+	/**
+	 * 根据 text 创建 RouteDefinition
+	 * @param text 格式 ${id}=${uri},${predicates[0]},${predicates[1]}...${predicates[n]}
+	 *             例如 route001=http://127.0.0.1,Host=**.addrequestparameter.org,Path=/get
+	 */
 	public RouteDefinition(String text) {
 		int eqIdx = text.indexOf('=');
 		if (eqIdx <= 0) {
@@ -77,10 +87,13 @@ public class RouteDefinition {
 					"Unable to parse RouteDefinition text '" + text + "'" + ", must be of the form name=value");
 		}
 
+		// id
 		setId(text.substring(0, eqIdx));
 
+		// predicates
 		String[] args = tokenizeToStringArray(text.substring(eqIdx + 1), ",");
 
+		// uri
 		setUri(URI.create(args[0]));
 
 		for (int i = 1; i < args.length; i++) {

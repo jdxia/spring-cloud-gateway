@@ -33,15 +33,32 @@ import static org.springframework.util.StringUtils.tokenizeToStringArray;
  */
 @Validated
 public class PredicateDefinition {
+	/**
+	 * predicates:
+	 *   - After=2017-01-20T17:42:47.789-07:00[America/Denver]
+	 *
+	 * PredicateDefinition {
+	 * 			name='After',
+	 * 			args={_genkey_0=2017-01-20T17:42:47.789-07:00[America/Denver]}
+	 * }
+	 */
 
+	// 定义了 Predicate 的名称，它们要符固定的命名规范，为对应的工厂名称
 	@NotNull
 	private String name;
 
+	// 一个 Map 类型的参数，构造 Predicate 使用到的键值对参数
 	private Map<String, String> args = new LinkedHashMap<>();
 
 	public PredicateDefinition() {
 	}
 
+	/**
+	 * 根据 text 创建 PredicateDefinition
+	 *
+	 * @param text 格式 ${name}=${args[0]},${args[1]}...${args[n]}
+	 *             例如 Host=iocoder.cn
+	 */
 	public PredicateDefinition(String text) {
 		int eqIdx = text.indexOf('=');
 		if (eqIdx <= 0) {

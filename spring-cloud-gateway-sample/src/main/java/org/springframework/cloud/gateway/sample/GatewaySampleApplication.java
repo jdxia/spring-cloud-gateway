@@ -37,15 +37,14 @@ public class GatewaySampleApplication {
 	 * 源码先看这几个文件
 	 * 1. 自动装配的 spring-cloud-gateway-server/src/main/resources/META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports
 	 * 2. 其他的一些 spring-cloud-gateway-server/src/main/resources/META-INF/spring.factories
-	 *
-	 *
+	 * <p>
+	 * <p>
 	 * 内置谓词都是在这个文件夹里 spring-cloud-gateway-server/src/main/java/org/springframework/cloud/gateway/handler/predicate
 	 *
 	 */
 
 	public static void main(String[] args) {
 		System.setProperty("nacos.logging.default.config.enabled", "false");
-		System.setProperty("rocketmq.client.logUseSlf4j", "true");
 
 		/**
 		 * 检测Reactor/Netty IO 线程上的阻塞操作
@@ -80,8 +79,8 @@ public class GatewaySampleApplication {
 
 
 	/**
-     * 支持负载均衡
-     */
+	 * 支持负载均衡
+	 */
 	@Bean
 	public WebClient webLBClient(ReactorLoadBalancerExchangeFilterFunction lb) {
 		return WebClient.builder()
@@ -98,16 +97,33 @@ public class GatewaySampleApplication {
 				.build();
 	}
 
+	@Bean
+	public RouteLocator customRouteLocator(RouteLocatorBuilder builder) { // ① RouteLocatorBuilder bean 在 spring-cloud-starter-gateway 模块自动装配类中已经声明，可直接使用。RouteLocator 封装了对 Route 获取的定义，可简单理解成工厂模式
+		return builder.routes() // ② RouteLocatorBuilder 可以构建多个路由信息
+
+				/**
+				 * ③ 指定了 Predicates，这里包含两个：
+				 * 请求头Host需要匹配**.abc.org，通过 HostRoutePredicateFactory 产生
+				 * 请求路径需要匹配/image/png，通过 PathRoutePredicateFactory 产生
+				 */
+				.route(r -> r.host("**.abc.org").and().path("/image/png")
+						.filters(f ->
+								// ④ 指定了一个 Filter，下游服务响应后添加响应头X-TestHeader:foobar，通过AddResponseHeaderGatewayFilterFactory 产生
+								f.addResponseHeader("X-TestHeader", "foobar"))
+						// ⑤ 指定路由转发的目的地 uri
+						.uri("http://httpbin.org:80")
+				)
+				.build();
+	}
+
 
 /**
-	public static final String HELLO_FROM_FAKE_ACTUATOR_METRICS_GATEWAY_REQUESTS = "hello from fake /actuator/metrics/spring.cloud.gateway.requests";
+ public static final String HELLO_FROM_FAKE_ACTUATOR_METRICS_GATEWAY_REQUESTS = "hello from fake /actuator/metrics/spring.cloud.gateway.requests";
 
-	@Value("${test.uri:http://httpbin.org:80}")
-	String uri;
+ @Value("${test.uri:http://httpbin.org:80}") String uri;
 
-	@Bean
-	public RouteLocator customRouteLocator(RouteLocatorBuilder builder) {
-		//@formatter:off
+ @Bean public RouteLocator customRouteLocator(RouteLocatorBuilder builder) {
+ //@formatter:off
 		// String uri = "http://httpbin.org:80";
 		// String uri = "http://localhost:9080";
 		return builder.routes()
@@ -195,45 +211,43 @@ public class GatewaySampleApplication {
 				)
 				.build();
 		//@formatter:on
-	}
+ }
 
-	@Bean
-	public RouterFunction<ServerResponse> testFunRouterFunction() {
-		RouterFunction<ServerResponse> route = RouterFunctions.route(RequestPredicates.path("/testfun"),
-				request -> ServerResponse.ok().body(BodyInserters.fromValue("hello")));
-		return route;
-	}
+ @Bean public RouterFunction<ServerResponse> testFunRouterFunction() {
+ RouterFunction<ServerResponse> route = RouterFunctions.route(RequestPredicates.path("/testfun"),
+ request -> ServerResponse.ok().body(BodyInserters.fromValue("hello")));
+ return route;
+ }
 
-	@Bean
-	public RouterFunction<ServerResponse> testWhenMetricPathIsNotMeet() {
-		RouterFunction<ServerResponse> route = RouterFunctions.route(
-				RequestPredicates.path("/actuator/metrics/spring.cloud.gateway.requests"),
-				request -> ServerResponse.ok()
-					.body(BodyInserters.fromValue(HELLO_FROM_FAKE_ACTUATOR_METRICS_GATEWAY_REQUESTS)));
-		return route;
-	}
+ @Bean public RouterFunction<ServerResponse> testWhenMetricPathIsNotMeet() {
+ RouterFunction<ServerResponse> route = RouterFunctions.route(
+ RequestPredicates.path("/actuator/metrics/spring.cloud.gateway.requests"),
+ request -> ServerResponse.ok()
+ .body(BodyInserters.fromValue(HELLO_FROM_FAKE_ACTUATOR_METRICS_GATEWAY_REQUESTS)));
+ return route;
+ }
 
-	static class Hello {
+ static class Hello {
 
-		String message;
+ String message;
 
-		Hello() {
-		}
+ Hello() {
+ }
 
-		Hello(String message) {
-			this.message = message;
-		}
+ Hello(String message) {
+ this.message = message;
+ }
 
-		public String getMessage() {
-			return message;
-		}
+ public String getMessage() {
+ return message;
+ }
 
-		public void setMessage(String message) {
-			this.message = message;
-		}
+ public void setMessage(String message) {
+ this.message = message;
+ }
 
-	}
-*/
+ }
+ */
 
 
 }

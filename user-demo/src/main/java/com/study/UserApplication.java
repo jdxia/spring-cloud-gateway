@@ -60,7 +60,6 @@ public class UserApplication {
 
 	public static void main(String[] args) {
 		System.setProperty("nacos.logging.default.config.enabled", "false");
-		System.setProperty("rocketmq.client.logUseSlf4j", "true");
 
 		SpringApplication.run(UserApplication.class, args);
 	}
