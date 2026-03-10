@@ -18,6 +18,10 @@ package org.springframework.cloud.gateway.route;
 
 /**
  * @author Spencer Gibb
+ *
+ * 通过实现该接口，实现从存储器( 例如，内存 / Redis / MySQL 等 )读取、保存、删除路由配置。
+ *
+ * 目前 Spring Cloud Gateway 实现了基于内存为存储器的 InMemoryRouteDefinitionRepository 。
  */
 public interface RouteDefinitionRepository extends RouteDefinitionLocator, RouteDefinitionWriter {
 

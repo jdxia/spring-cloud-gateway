@@ -135,7 +135,10 @@ public class DiscoveryClientRouteDefinitionLocator implements RouteDefinitionLoc
 	protected RouteDefinition buildRouteDefinition(Expression urlExpr, ServiceInstance serviceInstance) {
 		String serviceId = serviceInstance.getServiceId();
 		RouteDefinition routeDefinition = new RouteDefinition();
+		// 设置 ID
 		routeDefinition.setId(this.routeIdPrefix + serviceId);
+
+		// 设置url
 		String uri = urlExpr.getValue(this.evalCtxt, serviceInstance, String.class);
 		routeDefinition.setUri(URI.create(uri));
 		// add instance metadata

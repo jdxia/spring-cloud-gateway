@@ -16,10 +16,20 @@
 
 package org.springframework.cloud.gateway.route;
 
+import org.springframework.cloud.gateway.config.PropertiesRouteDefinitionLocator;
+import org.springframework.cloud.gateway.discovery.DiscoveryClientRouteDefinitionLocator;
 import reactor.core.publisher.Flux;
 
 /**
  * @author Spencer Gibb
+ *
+ * 负责读取路由配置
+ * 1. {@link PropertiesRouteDefinitionLocator} 从配置文件( 例如，YML / Properties 等 ) 读取
+ * 2. {@link RouteDefinitionRepository}  从存储器( 例如，内存 / Redis / MySQL 等 )读取
+ * 3. {@link DiscoveryClientRouteDefinitionLocator} 从注册中心( 例如，Eureka / Consul / Zookeeper / Etcd 等 )读取
+ * 4. {@link CompositeRouteDefinitionLocator} 组合多种 RouteDefinitionLocator 的实现，为 RouteDefinitionRouteLocator 提供统一入口
+ * 5. {@link org.springframework.cloud.gateway.route.CachingRouteDefinitionLocator} 也是 RouteDefinitionLocator 的实现类，已经被 CachingRouteLocator 取代
+ *
  */
 public interface RouteDefinitionLocator {
 

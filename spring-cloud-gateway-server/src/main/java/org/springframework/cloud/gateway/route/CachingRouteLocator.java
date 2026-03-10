@@ -23,6 +23,7 @@ import java.util.stream.Collectors;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.springframework.cloud.gateway.actuate.AbstractGatewayControllerEndpoint;
 import org.springframework.cloud.gateway.config.GatewayAutoConfiguration;
 import reactor.cache.CacheFlux;
 import reactor.core.publisher.Flux;
@@ -95,20 +96,30 @@ public class CachingRouteLocator
 		return this.routes;
 	}
 
+	/**
+	 * /actuator/gateway/refresh?metadata=serviceId=user-service
+	 * 管理端口那有个 {@link AbstractGatewayControllerEndpoint#refresh(List)}
+	 */
 	@Override
 	public void onApplicationEvent(RefreshRoutesEvent event) {
 		try {
+			// Scoped 刷新（通过 metadata 参数指定部分刷新）
 			if (this.cache.containsKey(CACHE_KEY) && event.isScoped()) {
+				// 获取匹配 metadata 的 routes
 				final Mono<List<Route>> scopedRoutes = fetch(event.getMetadata()).collect(Collectors.toList())
+						// 出错返回空列表
 					.onErrorResume(s -> Mono.just(List.of()));
 
+				// 异步更新缓存：scoped routes + 非 scoped routes
 				scopedRoutes.subscribe(scopedRoutesList -> {
 					updateCache(Flux.concat(Flux.fromIterable(scopedRoutesList), getNonScopedRoutes(event))
 						.sort(AnnotationAwareOrderComparator.INSTANCE));
 				}, this::handleRefreshError);
 			}
 			else {
+				// 全局刷新（没有 metadata 参数）
 				final Mono<List<Route>> allRoutes = fetch().collect(Collectors.toList());
+				// 更新缓存并发送 RefreshRoutesResultEvent 这个事件, 方法是 synchronized 的
 				allRoutes.subscribe(list -> updateCache(Flux.fromIterable(list)), this::handleRefreshError);
 			}
 		}

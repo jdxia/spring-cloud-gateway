@@ -61,8 +61,16 @@ public class RouteDefinitionRouteLocator implements RouteLocator {
 
 	private final ConfigurationService configurationService;
 
+	/**
+	 * RoutePredicateFactory 映射
+	 * key ：{@link RoutePredicateFactory#name()}
+	 */
 	private final Map<String, RoutePredicateFactory> predicates = new LinkedHashMap<>();
 
+	/**
+	 * GatewayFilterFactory 映射
+	 * key ：{@link GatewayFilterFactory#name()}
+	 */
 	private final Map<String, GatewayFilterFactory> gatewayFilterFactories = new HashMap<>();
 
 	private final GatewayProperties gatewayProperties;
@@ -72,10 +80,18 @@ public class RouteDefinitionRouteLocator implements RouteLocator {
 			List<GatewayFilterFactory> gatewayFilterFactories,  // GatewayFilter 工厂列表，同样会被映射成 key 为 name, value 为 factory 的 Map
 			GatewayProperties gatewayProperties, // 外部化配置类
 									   ConfigurationService configurationService) {
+
+		// 设置 RouteDefinitionLocator
 		this.routeDefinitionLocator = routeDefinitionLocator;
 		this.configurationService = configurationService;
+
+		// 初始化 RoutePredicateFactory
 		initFactories(predicates);
+
+		// 初始化 RoutePredicateFactory
 		gatewayFilterFactories.forEach(factory -> this.gatewayFilterFactories.put(factory.name(), factory));
+
+		// 设置 GatewayProperties
 		this.gatewayProperties = gatewayProperties;
 	}
 
@@ -187,6 +203,7 @@ public class RouteDefinitionRouteLocator implements RouteLocator {
 			}
 		}
 
+		// 返回 GatewayFilter 数组
 		return ordered;
 	}
 

@@ -65,8 +65,11 @@ public class PredicateDefinition {
 			throw new ValidationException(
 					"Unable to parse PredicateDefinition text '" + text + "'" + ", must be of the form name=value");
 		}
+
+		// name
 		setName(text.substring(0, eqIdx));
 
+		// args
 		String[] args = tokenizeToStringArray(text.substring(eqIdx + 1), ",");
 
 		for (int i = 0; i < args.length; i++) {

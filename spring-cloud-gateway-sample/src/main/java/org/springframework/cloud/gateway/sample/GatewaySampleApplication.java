@@ -41,6 +41,10 @@ public class GatewaySampleApplication {
 	 * <p>
 	 * 内置谓词都是在这个文件夹里 spring-cloud-gateway-server/src/main/java/org/springframework/cloud/gateway/handler/predicate
 	 *
+	 * 调用路径是
+	 * {@link org.springframework.web.reactive.DispatcherHandler} : 接收到请求，匹配 HandlerMapping ，此处会匹配到 RoutePredicateHandlerMapping
+	 * {@link org.springframework.cloud.gateway.handler.RoutePredicateHandlerMapping} : 接收到请求，匹配 Route
+	 * {@link org.springframework.cloud.gateway.handler.FilteringWebHandler} ：获得 Route 的 GatewayFilter 数组，创建 GatewayFilterChain 处理请求
 	 */
 
 	public static void main(String[] args) {
@@ -79,8 +83,8 @@ public class GatewaySampleApplication {
 
 
 	/**
-	 * 支持负载均衡
-	 */
+     * 支持负载均衡
+     */
 	@Bean
 	public WebClient webLBClient(ReactorLoadBalancerExchangeFilterFunction lb) {
 		return WebClient.builder()

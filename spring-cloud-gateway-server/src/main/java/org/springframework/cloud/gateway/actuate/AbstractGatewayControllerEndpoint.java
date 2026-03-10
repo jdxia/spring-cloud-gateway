@@ -175,8 +175,12 @@ public class AbstractGatewayControllerEndpoint implements ApplicationEventPublis
 
 	// TODO: Add uncommited or new but not active routes endpoint
 
+	/**
+	 * 调用这个 /actuator/gateway/refresh?metadata=serviceId=user-service
+	 */
 	@PostMapping("/refresh")
 	public Mono<Void> refresh(@RequestParam(value = "metadata", required = false) List<String> byMetadata) {
+		// 发布事件
 		publishRefreshEvent(byMetadata);
 		return Mono.empty();
 	}
