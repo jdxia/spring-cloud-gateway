@@ -43,11 +43,19 @@ public class PredicateDefinition {
 	 * }
 	 */
 
-	// 定义了 Predicate 的名称，它们要符固定的命名规范，为对应的工厂名称
+	/**
+	 * 定义了 Predicate 的名称，它们要符固定的命名规范，为对应的工厂名称
+	 *
+	 * 断言的名称，与 {@link AbstractRoutePredicateFactory} 的子类名称前缀相同
+	 */
 	@NotNull
 	private String name;
 
-	// 一个 Map 类型的参数，构造 Predicate 使用到的键值对参数
+	/**
+	 *  断言的参数  key:_genkey_0 value:/login
+	 *
+	 *  一个 Map 类型的参数，构造 Predicate 使用到的键值对参数
+	 */
 	private Map<String, String> args = new LinkedHashMap<>();
 
 	public PredicateDefinition() {
@@ -70,8 +78,10 @@ public class PredicateDefinition {
 		setName(text.substring(0, eqIdx));
 
 		// args
+		// 将配置的字符串参数中"="右边的字符串以","分割
 		String[] args = tokenizeToStringArray(text.substring(eqIdx + 1), ",");
 
+		// 遍历","分割后的结果，随机生成一个key(_genkey_+参数下标)，value为参数
 		for (int i = 0; i < args.length; i++) {
 			this.args.put(NameUtils.generateName(i), args[i]);
 		}

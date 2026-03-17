@@ -33,6 +33,7 @@ import reactor.core.publisher.Flux;
  */
 public interface RouteDefinitionLocator {
 
+	// 获取所有的路由信息
 	Flux<RouteDefinition> getRouteDefinitions();
 
 }

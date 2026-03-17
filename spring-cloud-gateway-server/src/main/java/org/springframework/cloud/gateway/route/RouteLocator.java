@@ -28,6 +28,7 @@ import org.springframework.util.CollectionUtils;
 // TODO: rename to Routes?
 public interface RouteLocator {
 
+	//用来获取路由的
 	Flux<Route> getRoutes();
 
 	/**

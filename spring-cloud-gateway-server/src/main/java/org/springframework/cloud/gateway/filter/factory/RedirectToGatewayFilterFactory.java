@@ -65,6 +65,10 @@ public class RedirectToGatewayFilterFactory
 		return Arrays.asList(STATUS_KEY, URL_KEY, INCLUDE_REQUEST_PARAMS_KEY);
 	}
 
+	/**
+	 * filters:
+	 *   - RedirectTo=302, http://www.iocoder.cn
+	 */
 	@Override
 	public GatewayFilter apply(Config config) {
 		return apply(config.status, config.url, config.includeRequestParams);
@@ -75,8 +79,12 @@ public class RedirectToGatewayFilterFactory
 	}
 
 	public GatewayFilter apply(String statusString, String urlString, boolean includeRequestParams) {
+
+		// 解析 status ，并判断是否是 3XX 重定向状态
 		HttpStatusHolder httpStatus = HttpStatusHolder.parse(statusString);
 		Assert.isTrue(httpStatus.is3xxRedirection(), "status must be a 3xx code, but was " + statusString);
+
+		// 创建 URL
 		final URI url = URI.create(urlString);
 		return apply(httpStatus, url, includeRequestParams);
 	}
@@ -98,6 +106,8 @@ public class RedirectToGatewayFilterFactory
 			@Override
 			public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
 				if (!exchange.getResponse().isCommitted()) {
+
+					// 设置响应 Status
 					setResponseStatus(exchange, httpStatus);
 
 					String location;
@@ -112,6 +122,7 @@ public class RedirectToGatewayFilterFactory
 						location = uri.toString();
 					}
 
+					// 设置响应 Header
 					final ServerHttpResponse response = exchange.getResponse();
 					response.getHeaders().set(HttpHeaders.LOCATION, location);
 					return response.setComplete();

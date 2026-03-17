@@ -85,10 +85,10 @@ public class RouteDefinitionRouteLocator implements RouteLocator {
 		this.routeDefinitionLocator = routeDefinitionLocator;
 		this.configurationService = configurationService;
 
-		// 初始化 RoutePredicateFactory
+		//初始化Predicate断言信息（所有的）
 		initFactories(predicates);
 
-		// 初始化 RoutePredicateFactory
+		//初始化Filter信息（所有的），与初始化Predicate断言信息类似
 		gatewayFilterFactories.forEach(factory -> this.gatewayFilterFactories.put(factory.name(), factory));
 
 		// 设置 GatewayProperties
@@ -97,11 +97,14 @@ public class RouteDefinitionRouteLocator implements RouteLocator {
 
 	private void initFactories(List<RoutePredicateFactory> predicates) {
 		predicates.forEach(factory -> {
+			//key为RoutePredicateFactory实现类的名称前缀如AfterRoutePredicateFactory则key为After
 			String key = factory.name();
 			if (this.predicates.containsKey(key)) {
 				this.logger.warn("A RoutePredicateFactory named " + key + " already exists, class: "
 						+ this.predicates.get(key) + ". It will be overwritten.");
 			}
+
+			//如果已经存在该断言Factory，则覆盖，也就是说以SCG内置的为主
 			this.predicates.put(key, factory);
 			if (logger.isInfoEnabled()) {
 				logger.info("Loaded RoutePredicateFactory [" + key + "]");
@@ -148,7 +151,11 @@ public class RouteDefinitionRouteLocator implements RouteLocator {
 	}
 
 	private Route convertToRoute(RouteDefinition routeDefinition) {
-		// 根据路由定义, 生成匹配器, 将 PredicateDefinition 转换成 AsyncPredicate
+		/**
+		 * 重点
+		 * 获取RouteDefinition对应的断言
+		 * 根据路由定义, 生成匹配器, 将 PredicateDefinition 转换成 AsyncPredicate
+		 */
 		AsyncPredicate<ServerWebExchange> predicate = combinePredicates(routeDefinition);
 		// 根据路由定义, 生成过滤器
 		List<GatewayFilter> gatewayFilters = getFilters(routeDefinition);
@@ -193,7 +200,7 @@ public class RouteDefinitionRouteLocator implements RouteLocator {
 				hasRouteId.setRouteId(id);
 			}
 
-			// 根据配置对象 生成过滤器
+			// 根据配置对象 生成过滤器, 生成GatewayFilter
 			GatewayFilter gatewayFilter = factory.apply(configuration);
 			if (gatewayFilter instanceof Ordered) {
 				ordered.add(gatewayFilter);

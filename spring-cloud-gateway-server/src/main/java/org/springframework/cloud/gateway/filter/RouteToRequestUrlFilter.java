@@ -35,6 +35,19 @@ import static org.springframework.cloud.gateway.support.ServerWebExchangeUtils.c
 
 /**
  * @author Spencer Gibb
+ *
+ * 根据匹配的 Route ，计算请求的地址。注意，这里的地址指的是 URL ，而不是 URI
+ *
+ * URL 合并器，负责将用户请求的 URI 与匹配的路由 URI 合并，生成最终转发的目标 URL
+ *
+ * 用户请求: http://gateway/api/user/123?name=test
+ *   路由配置: lb://user-service
+ *
+ *   合并后:   lb://user-service/api/user/123?name=test
+ *            ↑scheme/host 来自路由   ↑path/query 来自请求
+ *
+ *
+ *
  */
 public class RouteToRequestUrlFilter implements GlobalFilter, Ordered {
 
@@ -56,11 +69,13 @@ public class RouteToRequestUrlFilter implements GlobalFilter, Ordered {
 
 	@Override
 	public int getOrder() {
+		// 顺序是 10000
 		return ROUTE_TO_URL_FILTER_ORDER;
 	}
 
 	@Override
 	public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
+		// 当前匹配的路由
 		Route route = exchange.getAttribute(GATEWAY_ROUTE_ATTR);
 		if (route == null) {
 			return chain.filter(exchange);
@@ -77,6 +92,7 @@ public class RouteToRequestUrlFilter implements GlobalFilter, Ordered {
 			routeUri = URI.create(routeUri.getSchemeSpecificPart());
 		}
 
+		// 如果你的url是 lb的, 但是 host是空, 这是有问题的
 		if ("lb".equalsIgnoreCase(routeUri.getScheme()) && routeUri.getHost() == null) {
 			// Load balanced URIs should always have a host. If the host is null it is
 			// most likely because the host name was invalid (for example included an
@@ -84,6 +100,7 @@ public class RouteToRequestUrlFilter implements GlobalFilter, Ordered {
 			throw new IllegalStateException("Invalid host: " + routeUri.toString());
 		}
 
+		// 生成一个合并的url
 		URI mergedUrl = UriComponentsBuilder.fromUri(uri)
 			// .uri(routeUri)
 			.scheme(routeUri.getScheme())
@@ -91,7 +108,11 @@ public class RouteToRequestUrlFilter implements GlobalFilter, Ordered {
 			.port(routeUri.getPort())
 			.build(encoded)
 			.toUri();
+
+		// 最终转发的目标 URL, 存储的值类型：URI
 		exchange.getAttributes().put(GATEWAY_REQUEST_URL_ATTR, mergedUrl);
+
+		// 提交过滤器链继续过滤
 		return chain.filter(exchange);
 	}
 

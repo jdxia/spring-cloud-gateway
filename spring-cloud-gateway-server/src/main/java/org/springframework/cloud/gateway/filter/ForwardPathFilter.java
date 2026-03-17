@@ -40,9 +40,12 @@ public class ForwardPathFilter implements GlobalFilter, Ordered {
 		Route route = exchange.getAttribute(GATEWAY_ROUTE_ATTR);
 		URI routeUri = route.getUri();
 		String scheme = routeUri.getScheme();
+		// 如果不是就直接放行
 		if (isAlreadyRouted(exchange) || !"forward".equals(scheme)) {
 			return chain.filter(exchange);
 		}
+
+		// 复制一个请求修改里面的 path
 		exchange = exchange.mutate().request(exchange.getRequest().mutate().path(routeUri.getPath()).build()).build();
 		return chain.filter(exchange);
 	}

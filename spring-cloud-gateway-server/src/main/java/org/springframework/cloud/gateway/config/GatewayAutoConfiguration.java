@@ -235,6 +235,9 @@ public class GatewayAutoConfiguration {
 	}
 
 	/**
+	 * PropertiesRouteDefinitionLocator 是{@link RouteDefinitionLocator}的实现类 用于存储从配置文件中读取的路由信息
+	 * @param properties 即为上边装配的GatewayProperties Bean
+	 *
 	 * 重要的配置 {@link GatewayProperties}
 	 * 配置路由定义
 	 */
@@ -254,7 +257,11 @@ public class GatewayAutoConfiguration {
 	}
 
 	/**
-	 * 这个是加了 Primary 的
+	 * 将上边装配的RouteDefinitionLocator再次进行组装
+	 *
+	 * 这个是加了 Primary 的, 是为了下边装配RouteDefinitionRouteLocator时此Bean为注入的RouteDefinitionLocator Bean
+	 *
+	 * 存储从配置文件中读取的路由信息
 	 */
 	@Bean
 	@Primary
@@ -271,8 +278,15 @@ public class GatewayAutoConfiguration {
 
 
 	/**
-	 * 参数注入的很多都是工厂
-	 * 这边不包含全局的filter
+	 * @param properties 即为装配的GatewayProperties Bean
+	 * @param gatewayFilters 即为装配的 GatewayFilterFactory所有的实现类
+	 * @param predicates 即为装配的  RoutePredicateFactory 所有的实现类
+	 * @param routeDefinitionLocator 即为装配的RouteDefinitionLocator ->CompositeRouteDefinitionLocator
+	 * @return
+	 *
+	 *
+	 * RouteDefinitionRouteLocator是用来将RouteDefinitionLocator、GatewayFilterFactory和RoutePredicateFactory组装起来并生成Route，
+	 * RouteDefinitionLocator就是CompositeRouteDefinitionLocator
 	 */
 	@Bean
 	public RouteLocator routeDefinitionRouteLocator(GatewayProperties properties,
@@ -289,6 +303,10 @@ public class GatewayAutoConfiguration {
 	/**
 	 * 这个是加了 Primary 的
 	 * 这个方法参数里面的就是上面的 routeDefinitionRouteLocator
+	 *
+	 * 通过名称看是做缓存的，那是怎么做缓存的呢？在上边的CompositeRouteLocator中的getRoutes方法中，
+	 * 其实是调用RouteDefinitionRouteLocator或者自定义的RouteLocator的getRoutes方法，但是RouteDefinitionRouteLocator并没有在初始化时将Route组装好，
+	 * 因此在CachingRouteLocator初始化时会调用每个RouteLocator的getRoutes组装好所有的Route并缓存，供RoutePredicateHandlerMapping调用
 	 */
 	@Bean
 	@Primary
@@ -330,6 +348,9 @@ public class GatewayAutoConfiguration {
 	}
 
 	/**
+	 * @param webHandler 上边装配的FilteringWebHandler
+	 * @param routeLocator 上边装配的CachingRouteLocator
+	 *
 	 * 他的作用就是 返回一个 webHandler
 	 */
 	@Bean
@@ -341,6 +362,7 @@ public class GatewayAutoConfiguration {
 
 	/**
 	 * 这是配置文件解析
+	 * 用来读取封装配置文件中配置的RouteDefinition、FilterDefinition、PredicationDefinition，即路由信息
 	 */
 	@Bean
 	public GatewayProperties gatewayProperties() {
@@ -474,6 +496,9 @@ public class GatewayAutoConfiguration {
 
 	// Predicate Factory beans
 
+	/**
+	 * 创建org.springframework.cloud.gateway.handler.predicate包下所有实现了RoutePredicateFactory接口的类
+	 */
 	@Bean
 	@ConditionalOnEnabledPredicate
 	public AfterRoutePredicateFactory afterRoutePredicateFactory() {
@@ -562,6 +587,10 @@ public class GatewayAutoConfiguration {
 	}
 
 	// GatewayFilter Factory beans
+
+	/**
+	 * 创建org.springframework.cloud.gateway.filter.factory包下所有的实现了GatewayFilterFactory的类
+	 */
 
 	@Bean
 	@ConditionalOnEnabledFilter

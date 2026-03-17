@@ -30,6 +30,8 @@ import org.springframework.web.server.ServerWebExchange;
  *
  * @author Rossen Stoyanchev
  * @since 5.0
+ *
+ * 网关过滤器接口
  */
 public interface GatewayFilter extends ShortcutConfigurable {
 

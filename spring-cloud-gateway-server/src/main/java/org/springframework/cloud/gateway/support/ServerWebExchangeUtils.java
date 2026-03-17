@@ -105,7 +105,7 @@ public final class ServerWebExchangeUtils {
 	 * Gateway route attribute name.
 	 *
 	 * 当前匹配的路由, 核心属性, 存储的值类型：Route
-	 * 找到第一个匹配的路由，然后把这个 Route 对象放进这里
+	 * 找到第一个匹配的路由，然后把这个 Route 对象放进这里, 路由信息
 	 *
 	 * 很多 filter 都会读取这个
 	 */
@@ -353,6 +353,10 @@ public final class ServerWebExchangeUtils {
 	}
 
 	public static void addOriginalRequestUrl(ServerWebExchange exchange, URI url) {
+		/**
+		 * 数组，考虑多次重写
+		 * 添加原始请求 URI 到 GATEWAY_ORIGINAL_REQUEST_URL_ATTR
+		 */
 		exchange.getAttributes().computeIfAbsent(GATEWAY_ORIGINAL_REQUEST_URL_ATTR, s -> new LinkedHashSet<>());
 		LinkedHashSet<URI> uris = exchange.getRequiredAttribute(GATEWAY_ORIGINAL_REQUEST_URL_ATTR);
 		uris.add(url);

@@ -28,6 +28,8 @@ import static org.springframework.cloud.gateway.support.GatewayToStringStyler.fi
 
 /**
  * @author Spencer Gibb
+ *
+ * 添加指定请求 Header 为指定值
  */
 public class AddRequestHeaderGatewayFilterFactory extends AbstractNameValueGatewayFilterFactory {
 
@@ -37,11 +39,18 @@ public class AddRequestHeaderGatewayFilterFactory extends AbstractNameValueGatew
 			@Override
 			public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
 				String value = ServerWebExchangeUtils.expand(exchange, config.getValue());
+				/**
+				 * filters:
+				 *   - AddRequestHeader=X-Request-Foo, Bar
+				 *
+				 *   创建新的 ServerHttpRequest
+				 */
 				ServerHttpRequest request = exchange.getRequest()
 					.mutate()
 					.headers(httpHeaders -> httpHeaders.add(config.getName(), value))
 					.build();
 
+				// 创建新的 ServerWebExchange ，提交过滤器链继续过滤
 				return chain.filter(exchange.mutate().request(request).build());
 			}
 

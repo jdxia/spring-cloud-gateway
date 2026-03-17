@@ -61,6 +61,8 @@ public class GatewayProperties {
 	/**
 	 * List of filter definitions that are applied to every route.
 	 *
+	 * 作用于每个路由的过滤器列表
+	 *
 	 * 用于定义默认的 Filter 列表，默认的 Filter 会应用到每一个 Route 上，gateway 处理时会将其与 Route 中指定的 Filter 进行合并后并逐个执行
 	 */
 	private List<FilterDefinition> defaultFilters = new ArrayList<>();

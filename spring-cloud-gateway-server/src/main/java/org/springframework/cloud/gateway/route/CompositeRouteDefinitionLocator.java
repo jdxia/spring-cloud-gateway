@@ -55,6 +55,7 @@ public class CompositeRouteDefinitionLocator implements RouteDefinitionLocator {
 		return this.delegates.flatMapSequential(RouteDefinitionLocator::getRouteDefinitions)
 			.flatMap(routeDefinition -> {
 				if (routeDefinition.getId() == null) {
+					// 如果路由id为空，则生成一个
 					return randomId().map(id -> {
 						routeDefinition.setId(id);
 						if (log.isDebugEnabled()) {

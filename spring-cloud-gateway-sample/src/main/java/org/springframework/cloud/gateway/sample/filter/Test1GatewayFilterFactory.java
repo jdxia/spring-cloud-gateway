@@ -52,6 +52,13 @@ public class Test1GatewayFilterFactory implements GatewayFilterFactory<Test1Gate
 
 				// 可以继续下一个过滤器, 也可以直接返回用户响应
 				return chain.filter(exchange);
+
+//				return chain.filter(exchange)
+				// 后置处理
+//						.then(xxx)
+//						// filter 后置处理
+//						.doOnSuccess(xxx);
+
 			}
 		};
 	}

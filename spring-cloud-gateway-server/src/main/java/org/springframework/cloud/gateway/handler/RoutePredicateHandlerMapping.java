@@ -19,6 +19,8 @@ package org.springframework.cloud.gateway.handler;
 import java.util.function.Function;
 
 import org.springframework.cloud.gateway.route.CachingRouteLocator;
+import org.springframework.web.reactive.DispatcherHandler;
+import org.springframework.web.reactive.result.SimpleHandlerAdapter;
 import reactor.core.publisher.Mono;
 
 import org.springframework.cloud.gateway.config.GatewayProperties;
@@ -81,6 +83,25 @@ public class RoutePredicateHandlerMapping extends AbstractHandlerMapping {
 
 	/**
 	 * 核心
+	 *
+	 * 调用链路
+	 *   HTTP 请求进入
+	 *       ↓
+	 *  {@link DispatcherHandler#handle(ServerWebExchange)}  Spring WebFlux 核心调度器
+	 *       ↓
+	 *  {@link AbstractHandlerMapping#getHandler(ServerWebExchange)}    [父类模板方法] 遍历所有 HandlerMapping，调用 getHandler(), 会 在 getHandlerInternal 之后 处理 CORS
+	 *       ↓
+	 *  {@link AbstractHandlerMapping#getHandlerInternal(ServerWebExchange)}  [抽象方法]
+	 *       ↓
+	 *  {@link RoutePredicateHandlerMapping#getHandlerInternal(ServerWebExchange)}  [子类实现]
+	 *        ↓
+	 *  上面的会 返回 webHandler，它是 {@link FilteringWebHandler} 实例,
+	 *  然后 {@link DispatcherHandler#handle(ServerWebExchange)} 这个里面的 handleRequestWith 会进行处理,
+	 *  入参的handler就是 上面的 webHandler,
+	 *  然后进入到 {@link DispatcherHandler#handleRequestWith(ServerWebExchange, Object)} , 里面的 adapter 是 {@link SimpleHandlerAdapter} 可以看这个 {@link SimpleHandlerAdapter#supports(Object)}
+	 * 具体处理是 {@link SimpleHandlerAdapter#handle(ServerWebExchange, Object)}  也就是 调用这个handler的handle方法 {@link FilteringWebHandler#handle(ServerWebExchange)}
+	 *    filter handle里面里面会有正向和逆向, 函数式编程实现的
+	 *
 	 */
 	@Override
 	protected Mono<?> getHandlerInternal(ServerWebExchange exchange) {
@@ -103,7 +124,10 @@ public class RoutePredicateHandlerMapping extends AbstractHandlerMapping {
 		return Mono.deferContextual(contextView -> {
 			exchange.getAttributes().put(GATEWAY_REACTOR_CONTEXT_ATTR, contextView);
 
-			// 根据当前的请求匹配路由
+			/**
+			 * 根据当前的请求匹配路由
+			 * 从缓存里面获取所有路由, 调用每个路由器的匹配规则进行判断
+			 */
 			return lookupRoute(exchange)
 				// .log("route-predicate-handler-mapping", Level.FINER) //name this
 
@@ -122,12 +146,12 @@ public class RoutePredicateHandlerMapping extends AbstractHandlerMapping {
 					 * 把匹配到的路由缓存起来
 					 * r 是 匹配到的 router
 					 *
-					 * GATEWAY_ROUTE_ATTR 放的就是 匹配成功后存储最终选中的路由对象
+					 * GATEWAY_ROUTE_ATTR 放的就是 匹配成功后存储最终选中的路由对象, 路由信息
 					 */
 					exchange.getAttributes().put(GATEWAY_ROUTE_ATTR, r);
 
 					/**
-					 * 返回webHandler，它是FilteringWebHandler实例
+					 * 返回 webHandler，它是 {@link FilteringWebHandler} 实例
 					 * Spring WebFlux会调用这个handler的handle方法 {@link FilteringWebHandler#handle(ServerWebExchange)}
 					 */
 					return webHandler;
@@ -135,6 +159,10 @@ public class RoutePredicateHandlerMapping extends AbstractHandlerMapping {
 					// 如果没有匹配到路由, 返回为空的话就是 404
 				.switchIfEmpty(Mono.empty().then(Mono.fromRunnable(() -> {
 					exchange.getAttributes().remove(GATEWAY_PREDICATE_ROUTE_ATTR);
+
+					/**
+					 * 清除ServerWebExchange属性中的请求正文。该属性为CACHE_REQUEST_BODY_ATTR
+					 */
 					ServerWebExchangeUtils.clearCachedRequestBody(exchange);
 					if (logger.isTraceEnabled()) {
 						logger.trace("No RouteDefinition found for [" + getExchangeDesc(exchange) + "]");

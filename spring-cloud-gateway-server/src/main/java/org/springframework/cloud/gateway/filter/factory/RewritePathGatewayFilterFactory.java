@@ -57,22 +57,39 @@ public class RewritePathGatewayFilterFactory
 		return Arrays.asList(REGEXP_KEY, REPLACEMENT_KEY);
 	}
 
+	/**
+	 * 注意，$\ 用于替代 $ ，避免和 YAML 语法冲突
+	 * filters:
+	 *   - RewritePath=/foo/(?<segment>.*), /$\{segment}
+	 *
+	 *
+	 */
 	@Override
 	public GatewayFilter apply(Config config) {
+		// `$\` 用于替代 `$` ，避免和 YAML 语法冲突
 		String replacement = config.replacement.replace("$\\", "$");
 		Pattern pattern = Pattern.compile(config.regexp);
 		return new GatewayFilter() {
 			@Override
 			public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
 				ServerHttpRequest req = exchange.getRequest();
+
+				// 添加 原始请求URI 到 GATEWAY_ORIGINAL_REQUEST_URL_ATTR
 				addOriginalRequestUrl(exchange, req.getURI());
+
+				// 重写 Path
 				String path = req.getURI().getRawPath();
 				String newPath = pattern.matcher(path).replaceAll(replacement);
 
-				ServerHttpRequest request = req.mutate().path(newPath).build();
+				// 创建新的 ServerHttpRequest
+				ServerHttpRequest request = req.mutate()
+						// 设置 Path
+						.path(newPath).build();
 
+				// 添加 请求URI 到 GATEWAY_REQUEST_URL_ATTR
 				exchange.getAttributes().put(GATEWAY_REQUEST_URL_ATTR, request.getURI());
 
+				// 创建新的 ServerWebExchange ，提交过滤器链继续过滤
 				return chain.filter(exchange.mutate().request(request).build());
 			}
 

@@ -31,6 +31,21 @@ import org.springframework.web.server.ServerWebExchange;
  *
  * @author Rossen Stoyanchev
  * @since 5.0
+ *
+ * GlobalFilter 和 GatewayFilter 的 #filter(ServerWebExchange, GatewayFilterChain) 方法签名一致
+ * 官方说，未来的版本将作出一些调整
+ *
+ * GlobalFilter 会作用到所有的 Route 上
+ * 顺序是这样的
+ *
+ * NettyWriteResponseFilter  -1
+ * WebClientWriteResponseFilter  -1
+ * RouteToRequestUrlFilter    10000
+ * LoadBalancerClientFilter		10100
+ * ForwardRoutingFilter		Integer.MAX_VALUE
+ * NettyRoutingFilter		Integer.MAX_VALUE
+ * WebClientHttpRoutingFilter	Integer.MAX_VALUE
+ * WebsocketRoutingFilter		Integer.MAX_VALUE
  */
 public interface GlobalFilter {
 

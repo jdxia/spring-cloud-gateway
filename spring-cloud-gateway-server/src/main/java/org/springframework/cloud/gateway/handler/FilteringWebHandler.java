@@ -56,6 +56,9 @@ public class FilteringWebHandler implements WebHandler, ApplicationListener<Refr
 
 	protected static final Log logger = LogFactory.getLog(FilteringWebHandler.class);
 
+	/**
+	 * 全局过滤器
+	 */
 	private final List<GatewayFilter> globalFilters;
 
 	private final ConcurrentHashMap<Route, List<GatewayFilter>> routeFilterMap = new ConcurrentHashMap();
@@ -79,6 +82,11 @@ public class FilteringWebHandler implements WebHandler, ApplicationListener<Refr
 
 	private static List<GatewayFilter> loadFilters(List<GlobalFilter> filters) {
 		return filters.stream().map(filter -> {
+
+			/**
+			 * 当 GlobalFilter 子类实现了 org.springframework.core.Ordered 接口，在委托一层 OrderedGatewayFilter
+			 * 这样 AnnotationAwareOrderComparator#sort(List) 方法好排序
+			 */
 			GatewayFilterAdapter gatewayFilter = new GatewayFilterAdapter(filter);
 			if (filter instanceof Ordered ordered) {
 				int order = ordered.getOrder();
@@ -129,9 +137,11 @@ public class FilteringWebHandler implements WebHandler, ApplicationListener<Refr
 	protected List<GatewayFilter> getCombinedFilters(Route route) {
 		// 如果开启缓存
 		if (this.routeFilterCacheEnabled) {
+			// 这个map的value是list, 是排序好的
 			return routeFilterMap.computeIfAbsent(route, this::getAllFilters);
 		}
 		else {
+			// 往下
 			return getAllFilters(route);
 		}
 	}
@@ -185,10 +195,13 @@ public class FilteringWebHandler implements WebHandler, ApplicationListener<Refr
 
 	}
 
+	// 网关过滤器链默认实现类
 	private static class GatewayFilterAdapter implements GatewayFilter, DecoratingProxy {
 
+		// 委托的 GlobalFilter
 		private final GlobalFilter delegate;
 
+		// 使用 delegate 过滤请求
 		GatewayFilterAdapter(GlobalFilter delegate) {
 			this.delegate = delegate;
 		}

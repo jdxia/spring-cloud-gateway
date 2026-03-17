@@ -5,8 +5,11 @@ import java.util.Map;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cloud.client.loadbalancer.reactive.ReactorLoadBalancerExchangeFilterFunction;
+import org.springframework.cloud.gateway.handler.RoutePredicateHandlerMapping;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.server.ServerWebExchange;
+import org.springframework.web.server.adapter.HttpWebHandlerAdapter;
 import reactor.blockhound.BlockHound;
 import reactor.core.publisher.Mono;
 
@@ -40,10 +43,12 @@ public class GatewaySampleApplication {
 	 * <p>
 	 * <p>
 	 * 内置谓词都是在这个文件夹里 spring-cloud-gateway-server/src/main/java/org/springframework/cloud/gateway/handler/predicate
+	 * 内置过滤器都是在这个文件夹里面  spring-cloud-gateway-server/src/main/java/org/springframework/cloud/gateway/filter
 	 *
 	 * 调用路径是
+	 * {@link HttpWebHandlerAdapter} 组装网关上下文
 	 * {@link org.springframework.web.reactive.DispatcherHandler} : 接收到请求，匹配 HandlerMapping ，此处会匹配到 RoutePredicateHandlerMapping
-	 * {@link org.springframework.cloud.gateway.handler.RoutePredicateHandlerMapping} : 接收到请求，匹配 Route
+	 * {@link RoutePredicateHandlerMapping#getHandlerInternal(ServerWebExchange)} : 接收到请求，匹配 Route
 	 * {@link org.springframework.cloud.gateway.handler.FilteringWebHandler} ：获得 Route 的 GatewayFilter 数组，创建 GatewayFilterChain 处理请求
 	 */
 

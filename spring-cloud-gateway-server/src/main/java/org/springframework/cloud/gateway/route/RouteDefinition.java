@@ -45,6 +45,8 @@ public class RouteDefinition {
 
 	/**
 	 * 匹配器的定义
+	 *
+	 * 配置的断言信息
 	 */
 	@NotEmpty
 	@Valid
@@ -52,12 +54,16 @@ public class RouteDefinition {
 
 	/**
 	 * 过滤器的定义
+	 *
+	 * 配置的过滤器信息
 	 */
 	@Valid
 	private List<FilterDefinition> filters = new ArrayList<>();
 
 	/**
 	 * 定义目的地 URI
+	 *
+	 * 需要转发到的目的URI
 	 */
 	@NotNull
 	private URI uri;
