@@ -64,6 +64,7 @@ public class RoutePredicateHandlerMapping extends AbstractHandlerMapping {
 
 		this.managementPort = getPortProperty(environment, "management.server.");
 		this.managementPortType = getManagementPortType(environment);
+		// RequestMappingHandlerMapping 之后
 		setOrder(environment.getProperty(GatewayProperties.PREFIX + ".handler-mapping.order", Integer.class, 1));
 		setCorsConfigurations(globalCorsProperties.getCorsConfigurations());
 	}

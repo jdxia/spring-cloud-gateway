@@ -142,7 +142,7 @@ public class WeightCalculatorWebFilter implements WebFilter, Ordered, SmartAppli
 	public void onApplicationEvent(ApplicationEvent event) {
 		// 匹配器参数的事件, 可能有多次
 		if (event instanceof PredicateArgsEvent) {
-			// 往下
+			// 监听到 RouteDefinitionRouteLocator 发布的事件
 			handle((PredicateArgsEvent) event);
 		}
 		else if (event instanceof WeightDefinedEvent) {
@@ -176,6 +176,7 @@ public class WeightCalculatorWebFilter implements WebFilter, Ordered, SmartAppli
 
 		WeightConfig config = new WeightConfig(event.getRouteId());
 
+		// 获取到当前路由的配置信息
 		this.configurationService.with(config).name(WeightConfig.CONFIG_PREFIX).normalizedProperties(args).bind();
 
 		// 往下
@@ -187,18 +188,22 @@ public class WeightCalculatorWebFilter implements WebFilter, Ordered, SmartAppli
 	}
 
 	/* for testing */ void addWeightConfig(WeightConfig weightConfig) {
+		//获取当前路由的group
 		String group = weightConfig.getGroup();
 		GroupWeightConfig config;
 		// only create new GroupWeightConfig rather than modify
 		// and put at end of calculations. This avoids concurency problems
 		// later during filter execution.
+		// 判断 groupWeights 是否包含了已经包含了同group的权重配置，此处的groupWeights是所有的路由权重信息
 		if (groupWeights.containsKey(group)) {
+			//如果有也创建一个信息，并将前边的该group下路由权重信息初始化进去
 			config = new GroupWeightConfig(groupWeights.get(group));
 		}
 		else {
 			config = new GroupWeightConfig(group);
 		}
 
+		//添加当前路由+路由权重
 		config.weights.put(weightConfig.getRouteId(), weightConfig.getWeight());
 
 		// recalculate
@@ -206,15 +211,29 @@ public class WeightCalculatorWebFilter implements WebFilter, Ordered, SmartAppli
 		// normalize weights
 		int weightsSum = 0;
 
+		/**
+		 * 计算配置的所有的路由权重和
+		 * 假设，我们配置rout1、route2、route3三个路由的权重分别为2,7,1，那么weightSum计算后为10
+		 */
 		for (Integer weight : config.weights.values()) {
 			weightsSum += weight;
 		}
 
 		final AtomicInteger index = new AtomicInteger(0);
+
+		//遍历
 		for (Map.Entry<String, Integer> entry : config.weights.entrySet()) {
+			//获取到路由ID
 			String routeId = entry.getKey();
+
+			//获取到路由的权重
 			Integer weight = entry.getValue();
+
+			//计算出当前路由的权重占比
+			//rout1：0.2，route2：0.7，route3：0.1
 			Double nomalizedWeight = weight / (double) weightsSum;
+
+			//放入normalizedWeights
 			config.normalizedWeights.put(routeId, nomalizedWeight);
 
 			// recalculate rangeIndexes
@@ -224,6 +243,7 @@ public class WeightCalculatorWebFilter implements WebFilter, Ordered, SmartAppli
 		// TODO: calculate ranges
 		config.ranges.clear();
 
+		//放入0号位置数0.0
 		config.ranges.add(0.0);
 
 		List<Double> values = new ArrayList<>(config.normalizedWeights.values());
@@ -234,10 +254,15 @@ public class WeightCalculatorWebFilter implements WebFilter, Ordered, SmartAppli
 			config.ranges.add(range);
 		}
 
+		//ranges ：大约为 0.0, 0.2, 0.9, 1.0
+		//相邻两个index之间代表的是一个路由的范围，
+		//如rout1：0.2，route2：0.7，route3：0.1  那ranges的元素为0.0, 0.2, 0.9, 1.0
+		//0.0到0.2则表示route1的权重范围，0.2到0.9表示的route2的权重范围以此类推
 		if (log.isTraceEnabled()) {
 			log.trace("Recalculated group weight config " + config);
 		}
 		// only update after all calculations
+		//添加权重分组，key：分组 value：分组下的所有路由的权重信息
 		groupWeights.put(group, config);
 	}
 
@@ -260,6 +285,7 @@ public class WeightCalculatorWebFilter implements WebFilter, Ordered, SmartAppli
 		Map<String, String> weights = getWeights(exchange);
 
 		for (String group : groupWeights.keySet()) {
+			//获取到当前分组的所有路由及权重信息
 			GroupWeightConfig config = groupWeights.get(group);
 
 			if (config == null) {
@@ -271,8 +297,10 @@ public class WeightCalculatorWebFilter implements WebFilter, Ordered, SmartAppli
 
 			// Usually, multiple threads accessing the same random object will have some
 			// performance problems, so we can use ThreadLocalRandom by default
+			//生成随机数
 			double r = randomFunction.apply(exchange);
 
+			//获取到当前分组的所有路由的权重范围
 			List<Double> ranges = config.ranges;
 
 			if (log.isTraceEnabled()) {
@@ -281,6 +309,9 @@ public class WeightCalculatorWebFilter implements WebFilter, Ordered, SmartAppli
 
 			// 看落在那个区间, 走那个 routeId
 			for (int i = 0; i < ranges.size() - 1; i++) {
+				//如果生成的随机数大于等于当前的元素，并且小于下一元素，说明属于当前路由，则获取到路由ID放入weights中返回
+				//WeightRoutePredicateFactory只需要判断weights中是否有当前路由的group，
+				//如果有，则进一步判断当前路由ID是否为这里计算出来的路由id即可
 				if (r >= ranges.get(i) && r < ranges.get(i + 1)) {
 					String routeId = config.rangeIndexes.get(i);
 					weights.put(group, routeId);
@@ -300,12 +331,17 @@ public class WeightCalculatorWebFilter implements WebFilter, Ordered, SmartAppli
 
 		String group;
 
+		//key：路由ID  value：权重
 		LinkedHashMap<String, Integer> weights = new LinkedHashMap<>();
 
+		//路由的权重占比
 		LinkedHashMap<String, Double> normalizedWeights = new LinkedHashMap<>();
 
 		LinkedHashMap<Integer, String> rangeIndexes = new LinkedHashMap<>();
 
+		//相邻两个index之间代表的是一个路由的范围，
+		//如rout1：0.2，route2：0.7，route3：0.1  那ranges的元素为0.0, 0.2, 0.9, 1.0
+		//0.0到0.2则表示route1的权重范围，0.2到0.9表示的route2的权重范围以此类推
 		List<Double> ranges = new ArrayList<>();
 
 		GroupWeightConfig(String group) {

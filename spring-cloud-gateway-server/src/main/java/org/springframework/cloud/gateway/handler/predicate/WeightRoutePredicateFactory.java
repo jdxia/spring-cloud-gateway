@@ -87,11 +87,28 @@ public class WeightRoutePredicateFactory extends AbstractRoutePredicateFactory<W
 		}
 	}
 
+	/**
+	 * - id: hello_route
+	 *         uri: http://localhost:8088/api/hello
+	 *         predicates:
+	 *         - Weight=group1,2
+	 *       - id: hello_route2
+	 *         uri: http://localhost:8089/api/hello
+	 *         predicates:
+	 *         - Weight=group1,8
+	 *
+	 * 上边的配置下，访问http://localhost:8088/api/hello的概率为20%
+	 * 访问http://localhost:8089/api/hello的概率为80%
+	 */
 	@Override
 	public Predicate<ServerWebExchange> apply(WeightConfig config) {
 		return new GatewayPredicate() {
 			@Override
 			public boolean test(ServerWebExchange exchange) {
+				/**
+				 * 获取到所有的权重信息，key：group ，value：路由ID
+				 * WEIGHT_ATTR 由 {@link WeightCalculatorWebFilter} 放入
+				 */
 				Map<String, String> weights = exchange.getAttributeOrDefault(WEIGHT_ATTR, Collections.emptyMap());
 
 				// 获取 routeId
@@ -99,15 +116,23 @@ public class WeightRoutePredicateFactory extends AbstractRoutePredicateFactory<W
 
 				// all calculations and comparison against random num happened in
 				// WeightCalculatorWebFilter
+				//获取到当前路由的group
 				String group = config.getGroup();
+
+				//判定权重信息中是否包含当前路由的group
 				if (weights.containsKey(group)) {
 
+					//根据group获取权重信息中的路由ID
 					String chosenRoute = weights.get(group);
 					if (log.isTraceEnabled()) {
 						log.trace("in group weight: " + group + ", current route: " + routeId + ", chosen route: "
 								+ chosenRoute);
 					}
 
+					/**
+					 * 判断当前路由的ID与权重信息中的路由ID是否相等，如果不相等，不匹配当前路由
+					 * 到这里其实能够看出来，weights中就是当前请求应该请求的route
+					 */
 					return routeId.equals(chosenRoute);
 				}
 				else if (log.isTraceEnabled()) {

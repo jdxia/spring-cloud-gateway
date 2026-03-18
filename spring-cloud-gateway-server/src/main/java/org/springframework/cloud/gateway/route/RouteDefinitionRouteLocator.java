@@ -24,6 +24,8 @@ import java.util.Map;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.springframework.cloud.gateway.filter.WeightCalculatorWebFilter;
+import org.springframework.context.ApplicationEvent;
 import reactor.core.publisher.Flux;
 
 import org.springframework.cloud.gateway.config.GatewayProperties;
@@ -268,11 +270,17 @@ public class RouteDefinitionRouteLocator implements RouteLocator {
 		/**
 		 * 根据配置的参数 生成工厂里面的 配置对象
 		 * 生成 PredicateArgsEvent 事件, 在 bind 里面 发事件
+		 *
+		 * 每个 RoutePredicateFactory 实现中都有Config，可以理解为我们配置的参数规则，生成此Config
 		 */
 		// @formatter:off
 		Object config = this.configurationService.with(factory)
 				.name(predicate.getName())
 				.properties(predicate.getArgs())
+				/**
+				 * 发布事件
+				 * {@link WeightCalculatorWebFilter#onApplicationEvent( ApplicationEvent)} 监听了这个事件
+				 */
 				.eventFunction((bound, properties) -> new PredicateArgsEvent(
 						RouteDefinitionRouteLocator.this, route.getId(), properties))
 				.bind();

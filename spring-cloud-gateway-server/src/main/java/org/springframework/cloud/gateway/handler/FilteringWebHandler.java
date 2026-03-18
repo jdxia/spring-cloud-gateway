@@ -80,16 +80,25 @@ public class FilteringWebHandler implements WebHandler, ApplicationListener<Refr
 		return routeFilterMap;
 	}
 
+	/**
+	 * 此方法主要是将GlobalFilter适配为GatewayFilter
+	 * @param filters
+	 * @return
+	 */
 	private static List<GatewayFilter> loadFilters(List<GlobalFilter> filters) {
 		return filters.stream().map(filter -> {
 
-			/**
-			 * 当 GlobalFilter 子类实现了 org.springframework.core.Ordered 接口，在委托一层 OrderedGatewayFilter
-			 * 这样 AnnotationAwareOrderComparator#sort(List) 方法好排序
-			 */
+			// 通过GatewayFilterAdapter将GlobalFilter适配为GatewayFilter
 			GatewayFilterAdapter gatewayFilter = new GatewayFilterAdapter(filter);
+
+			// 判断GlobalFilter是否实现了Ordered接口
 			if (filter instanceof Ordered ordered) {
 				int order = ordered.getOrder();
+
+				/**
+				 * OrderedGatewayFilter是一个有序的网关过滤器实现类，在FilterChain，过滤器数组会首先按照order进行顺序排序，按顺序过滤请求
+				 * 返回OrderedGatewayFilter
+				 */
 				return new OrderedGatewayFilter(gatewayFilter, order);
 			}
 			else {
