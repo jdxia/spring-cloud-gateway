@@ -36,7 +36,8 @@ import static org.springframework.cloud.gateway.support.ServerWebExchangeUtils.c
 /**
  * @author Spencer Gibb
  *
- * 根据匹配的 Route ，计算请求的地址。注意，这里的地址指的是 URL ，而不是 URI
+ * 用于根据RouteUri生成真正请求的URL，并放入请求上下文中供后边Filter使用。
+ * 注意，这里的地址指的是 URL ，而不是 URI
  *
  * URL 合并器，负责将用户请求的 URI 与匹配的路由 URI 合并，生成最终转发的目标 URL
  *
@@ -45,8 +46,6 @@ import static org.springframework.cloud.gateway.support.ServerWebExchangeUtils.c
  *
  *   合并后:   lb://user-service/api/user/123?name=test
  *            ↑scheme/host 来自路由   ↑path/query 来自请求
- *
- *
  *
  */
 public class RouteToRequestUrlFilter implements GlobalFilter, Ordered {
@@ -73,26 +72,42 @@ public class RouteToRequestUrlFilter implements GlobalFilter, Ordered {
 		return ROUTE_TO_URL_FILTER_ORDER;
 	}
 
+	/**
+	 * 用户请求: http://gateway/api/user/123?name=test
+	 *   路由配置: lb://user-service
+	 *
+	 *   RouteToRequestUrlFilter 合并后:
+	 *            lb://user-service/api/user/123?name=test
+	 *            ↑scheme/host 来自路由   ↑path/query 来自请求
+	 */
 	@Override
 	public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
 		// 当前匹配的路由
 		Route route = exchange.getAttribute(GATEWAY_ROUTE_ATTR);
+		//判断上下中是否有GATEWAY_ROUTE_ATTR，在RoutePredicateHandlerMapping中放入的
+		//如果没有则不执行
 		if (route == null) {
 			return chain.filter(exchange);
 		}
 		log.trace("RouteToRequestUrlFilter start");
+		//获取请求的URI
 		URI uri = exchange.getRequest().getURI();
+		//判断是否包含编码的部分，如%
 		boolean encoded = containsEncodedParts(uri);
+		//获取Route的uri
 		URI routeUri = route.getUri();
 
+		//判断是否为其他类型的协议 如：lb，则会将lb去掉
 		if (hasAnotherScheme(routeUri)) {
 			// this is a special url, save scheme to special attribute
 			// replace routeUri with schemeSpecificPart
+			//将当前请求的schema放入上下文中
 			exchange.getAttributes().put(GATEWAY_SCHEME_PREFIX_ATTR, routeUri.getScheme());
 			routeUri = URI.create(routeUri.getSchemeSpecificPart());
 		}
 
 		// 如果你的url是 lb的, 但是 host是空, 这是有问题的
+		//如果RouteUri以lb开头，必须请求中带有host
 		if ("lb".equalsIgnoreCase(routeUri.getScheme()) && routeUri.getHost() == null) {
 			// Load balanced URIs should always have a host. If the host is null it is
 			// most likely because the host name was invalid (for example included an
@@ -109,7 +124,10 @@ public class RouteToRequestUrlFilter implements GlobalFilter, Ordered {
 			.build(encoded)
 			.toUri();
 
-		// 最终转发的目标 URL, 存储的值类型：URI
+		/**
+		 * 最终转发的目标 URL, 存储的值类型：URI, mergedUrl 类似这样 lb://user-demo/api/user-demo/test
+		 * {@link NettyRoutingFilter#filter(ServerWebExchange, GatewayFilterChain)} 会取这个
+		 */
 		exchange.getAttributes().put(GATEWAY_REQUEST_URL_ATTR, mergedUrl);
 
 		// 提交过滤器链继续过滤

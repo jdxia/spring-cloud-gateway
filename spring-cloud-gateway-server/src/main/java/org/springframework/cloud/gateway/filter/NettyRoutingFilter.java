@@ -68,6 +68,18 @@ import static org.springframework.cloud.gateway.support.ServerWebExchangeUtils.s
 /**
  * @author Spencer Gibb
  * @author Biju Kunjummen
+ *
+ * NettyRoutingFilter处理schema为http/https的请求，使用基于Netty HttpClient请求后端的服务, 发起请求到后端服务, 请求转发 + 响应头处理
+ *
+ * {@link NettyWriteResponseFilter} 用来处理NettyRoutingFilter请求后端获得的响应，将响应写回给客户端。
+ *
+ * 同时SCG还定义了WebClientHttpRoutingFilter，于NettyRoutingFilter类似，区别在于没有使用Netty去做请求转发的代理。
+ * NettyRoutingFilter中会将请求的响应放入上下文中，供 {@link NettyWriteResponseFilter} 使用
+ *
+ * client =1=> {@link NettyRoutingFilter}  =2=> 后端服务
+ * 后端服务 =3=>  {@link NettyRoutingFilter}
+ *  {@link NettyRoutingFilter} =4=> {@link NettyWriteResponseFilter}
+ *  {@link NettyWriteResponseFilter} =5=> client
  */
 public class NettyRoutingFilter implements GlobalFilter, Ordered {
 
@@ -113,10 +125,16 @@ public class NettyRoutingFilter implements GlobalFilter, Ordered {
 	@SuppressWarnings("Duplicates")
 	public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
 		// 最终转发的目标 URL
+		/**
+		 * 从上下文中获取在{@link RouteToRequestUrlFilter} 中放入的请求URL
+		 */
 		URI requestUrl = exchange.getRequiredAttribute(GATEWAY_REQUEST_URL_ATTR);
 
+		//获取请求的协议
 		String scheme = requestUrl.getScheme();
+
 		// 看是什么协议
+		//如果该请求已经被处理过，或者请求协议不是http/https，则不处理
 		if (isAlreadyRouted(exchange) || (!"http".equalsIgnoreCase(scheme) && !"https".equalsIgnoreCase(scheme))) {
 			return chain.filter(exchange);
 		}
@@ -124,25 +142,34 @@ public class NettyRoutingFilter implements GlobalFilter, Ordered {
 		// 设置请求已被路由
 		setAlreadyRouted(exchange);
 
+		//获取请求
 		ServerHttpRequest request = exchange.getRequest();
 
+		//获取请求方式
 		final HttpMethod method = HttpMethod.valueOf(request.getMethod().name());
+
+		//获取请求的URI
 		final String url = requestUrl.toASCIIString();
 
 		// http 请求头的过滤器
+		//执行请求头Filter，如ForwardedHeadersFilter、RemoveHopByHopHeadersFilter、XForwardedHeadersFilter
 		HttpHeaders filtered = filterRequest(getHeadersFilters(), exchange);
 
 		final DefaultHttpHeaders httpHeaders = new DefaultHttpHeaders();
+		//基于filter过后的请求头创建Http请求头
 		filtered.forEach(httpHeaders::set);
 
 		boolean preserveHost = exchange.getAttributeOrDefault(PRESERVE_HOST_HEADER_ATTRIBUTE, false);
+		//获取路由
 		Route route = exchange.getAttribute(GATEWAY_ROUTE_ATTR);
 
 		/**
 		 * 先构造http client
+		 * 创建HttpClient
 		 */
 		Flux<HttpClientResponse> responseFlux = getHttpClientMono(route, exchange)
 			.flatMapMany(httpClient -> httpClient.headers(headers -> {
+				//添加请求头
 				headers.add(httpHeaders);
 
 				// 移除 host
@@ -164,11 +191,15 @@ public class NettyRoutingFilter implements GlobalFilter, Ordered {
 
 				/**
 				 * 响应的存起来
+				 * 将响应和连接存入 exchange，供 {@link NettyWriteResponseFilter} 使用
 				 */
 				// Defer committing the response until all route filters have run
 				// Put client response as ServerWebExchange attribute and write
 				// response later NettyWriteResponseFilter
+				//将调用真实服务返回的Response放入上下文，但NettyWriteResponseFilter中也没有用
 				exchange.getAttributes().put(CLIENT_RESPONSE_ATTR, res);
+
+				//将Netty Channle放入上下文供NettyWriteResponseFilter使用
 				exchange.getAttributes().put(CLIENT_RESPONSE_CONN_ATTR, connection);
 
 				// 拿到响应对象
@@ -208,8 +239,10 @@ public class NettyRoutingFilter implements GlobalFilter, Ordered {
 				return Mono.just(res);
 			}));
 
+		//获取响应超时时间
 		Duration responseTimeout = getResponseTimeout(route);
 		if (responseTimeout != null) {
+			//设置获取响应超时时间
 			responseFlux = responseFlux
 				.timeout(responseTimeout,
 						Mono.defer(() -> Mono

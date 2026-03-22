@@ -40,12 +40,21 @@ import static org.springframework.cloud.gateway.support.ServerWebExchangeUtils.C
 
 /**
  * @author Spencer Gibb
- */
+ *
+ * 在所有Filter之后运行(除了RemoveCachedBodyFilter)，用于将服务的响应数据返回到客户端 ，与之类似的有 WebClientWriteResponseFilter，属于测试版本，并未启用。
+ * NettyWriteResponseFilter会获取上下文中的CLIENT_RESPONSE_CONN_ATTR，这个Attr会在NettyRoutingFilter中放入
+ * 他是 写回响应给客户端, 响应体回写
+ *
+ * client =1=> {@link NettyRoutingFilter}  =2=> 后端服务
+ * 后端服务 =3=>  {@link NettyRoutingFilter}
+ *  {@link NettyRoutingFilter} =4=> {@link NettyWriteResponseFilter}
+ *  {@link NettyWriteResponseFilter} =5=> client
+  */
 public class NettyWriteResponseFilter implements GlobalFilter, Ordered {
 
 	/**
-	 * Order for write response filter.
-	 */
+     * Order for write response filter.
+     */
 	public static final int WRITE_RESPONSE_FILTER_ORDER = -1;
 
 	private static final Log log = LogFactory.getLog(NettyWriteResponseFilter.class);
@@ -68,6 +77,10 @@ public class NettyWriteResponseFilter implements GlobalFilter, Ordered {
 		// @formatter:off
 		return chain.filter(exchange)
 				.then(Mono.defer(() -> {
+					/**
+					 * 从上下文中获取CLIENT_RESPONSE_CONN_ATTR，Connection是对NettyChannel的封装
+					 * CLIENT_RESPONSE_CONN_ATTR是在 {@link NettyRoutingFilter#filter} 中放入的
+					 */
 					Connection connection = exchange.getAttribute(CLIENT_RESPONSE_CONN_ATTR);
 
 					if (connection == null) {
@@ -81,6 +94,10 @@ public class NettyWriteResponseFilter implements GlobalFilter, Ordered {
 					ServerHttpResponse response = exchange.getResponse();
 
 					// TODO: needed?
+					/**
+					 * 将byteBuf转换为DateBuff，
+					 * 因为{@link org.springframework.http.ReactiveHttpOutputMessage#writeWith(Publisher)} 需要DateBuff类型的
+					 */
 					final Flux<DataBuffer> body = connection
 							.inbound()
 							.receive()
@@ -97,7 +114,7 @@ public class NettyWriteResponseFilter implements GlobalFilter, Ordered {
 						}
 					}
 
-					// 写出去
+					//将NettyResponse写回给客户端
 					return (isStreamingMediaType(contentType)
 							? response.writeAndFlushWith(body.map(Flux::just))
 							: response.writeWith(body));

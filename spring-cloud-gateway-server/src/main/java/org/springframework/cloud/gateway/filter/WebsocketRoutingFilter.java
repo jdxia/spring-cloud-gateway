@@ -52,6 +52,14 @@ import static org.springframework.cloud.gateway.support.ServerWebExchangeUtils.s
 /**
  * @author Spencer Gibb
  * @author Nikita Konev
+ *
+ * 处理websocket请求，当请求上下文中的GATEWAY_REQUEST_URL_ATTR的URL中的协议(schema)为ws或者wss该Filter生效，使用Spring的WebSocket对请求进行转发。
+ * 同时可以进行负载均衡，通过在Route的URI配置前边加上lb:生效。
+ *
+ * - id: hello_route
+ *   uri: ws://httpbin或者wss://httpbin 也可在前边加上lb:表示需要负载均衡
+ *   predicates:
+ *     - Path=/api
  */
 public class WebsocketRoutingFilter implements GlobalFilter, Ordered {
 
@@ -97,9 +105,12 @@ public class WebsocketRoutingFilter implements GlobalFilter, Ordered {
 		URI requestUrl = exchange.getRequiredAttribute(GATEWAY_REQUEST_URL_ATTR);
 		String scheme = requestUrl.getScheme();
 
+		//只处理协议为ws或者wss的
 		if (isAlreadyRouted(exchange) || (!"ws".equals(scheme) && !"wss".equals(scheme))) {
 			return chain.filter(exchange);
 		}
+
+		//设置为已被处理，后边的NettyRoutingFilter或者WebClientHttpRoutingFilter则不会执行
 		setAlreadyRouted(exchange);
 
 		HttpHeaders headers = exchange.getRequest().getHeaders();
@@ -107,6 +118,9 @@ public class WebsocketRoutingFilter implements GlobalFilter, Ordered {
 
 		List<String> protocols = getProtocols(headers);
 
+		/**
+		 * 通过{@link HandshakeWebSocketService}去转发的请求
+		 */
 		return this.webSocketService.handleRequest(exchange,
 				new ProxyWebSocketHandler(requestUrl, this.webSocketClient, filtered, protocols));
 	}

@@ -474,6 +474,7 @@ public final class ServerWebExchangeUtils {
 	 * @param exchange the available ServerWebExchange.
 	 */
 	public static void clearCachedRequestBody(ServerWebExchange exchange) {
+		//清除缓存
 		Object attribute = exchange.getAttributes().remove(CACHED_REQUEST_BODY_ATTR);
 
 		// 如果是这个类型就会进行回收

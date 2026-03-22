@@ -208,6 +208,7 @@ public class RouteDefinitionRouteLocator implements RouteLocator {
 				ordered.add(gatewayFilter);
 			}
 			else {
+				//如果没有实现Ordered接口，则根据遍历的顺序排序
 				ordered.add(new OrderedGatewayFilter(gatewayFilter, i + 1));
 			}
 		}

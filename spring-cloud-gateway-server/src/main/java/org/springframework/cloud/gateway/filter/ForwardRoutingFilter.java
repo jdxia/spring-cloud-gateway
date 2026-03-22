@@ -31,6 +31,9 @@ import static org.springframework.cloud.gateway.support.ServerWebExchangeUtils.G
 import static org.springframework.cloud.gateway.support.ServerWebExchangeUtils.handle;
 import static org.springframework.cloud.gateway.support.ServerWebExchangeUtils.isAlreadyRouted;
 
+/**
+ * 用来处理forward协议的请求，将ForwardPathFilter构建的新的Request发送给DispatcherHandler处理。
+ */
 public class ForwardRoutingFilter implements GlobalFilter, Ordered {
 
 	private static final Log log = LogFactory.getLog(ForwardRoutingFilter.class);
@@ -59,9 +62,14 @@ public class ForwardRoutingFilter implements GlobalFilter, Ordered {
 
 	@Override
 	public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
+		/**
+		 * 获取  {@link RouteToRequestUrlFilter} 中生成的请求URL
+		 */
 		URI requestUrl = exchange.getRequiredAttribute(GATEWAY_REQUEST_URL_ATTR);
 
 		String scheme = requestUrl.getScheme();
+
+		//判定是否已经处理过或者请求协议为forward
 		if (isAlreadyRouted(exchange) || !"forward".equals(scheme)) {
 			return chain.filter(exchange);
 		}
@@ -72,6 +80,7 @@ public class ForwardRoutingFilter implements GlobalFilter, Ordered {
 			log.trace("Forwarding to URI: " + requestUrl);
 		}
 
+		//发送给 DispatcherHandler 处理
 		return handle(this.getDispatcherHandler(), exchange);
 	}
 

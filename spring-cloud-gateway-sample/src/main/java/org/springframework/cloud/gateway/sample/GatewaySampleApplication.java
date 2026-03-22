@@ -6,6 +6,8 @@ import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cloud.client.loadbalancer.reactive.ReactorLoadBalancerExchangeFilterFunction;
 import org.springframework.cloud.gateway.handler.RoutePredicateHandlerMapping;
+import org.springframework.cloud.gateway.route.RouteDefinition;
+import org.springframework.cloud.gateway.route.RouteDefinitionRouteLocator;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.server.ServerWebExchange;
@@ -50,7 +52,47 @@ public class GatewaySampleApplication {
 	 * {@link org.springframework.web.reactive.DispatcherHandler} : 接收到请求，匹配 HandlerMapping ，此处会匹配到 RoutePredicateHandlerMapping
 	 * {@link RoutePredicateHandlerMapping#getHandlerInternal(ServerWebExchange)} : 接收到请求，匹配 Route
 	 * {@link org.springframework.cloud.gateway.handler.FilteringWebHandler} ：获得 Route 的 GatewayFilter 数组，创建 GatewayFilterChain 处理请求
+	 *
+	 *
+	 * 看所有路由过滤器, 里面有全局和非全局 {@link RouteDefinitionRouteLocator#getFilters(RouteDefinition)}
+	 *
+	 ┌─────────────┬─────────────────────────────────────────┬──────────────────────────────────────────────────────┐
+	 │    Order    │                  类名                   │                         作用                         │
+	 ├─────────────┼─────────────────────────────────────────┼──────────────────────────────────────────────────────┤
+	 │ -2147483648 │ RemoveCachedBodyFilter                  │ 清除缓存的请求体（在请求结束时执行）                 │
+	 ├─────────────┼─────────────────────────────────────────┼──────────────────────────────────────────────────────┤
+	 │ -2147482648 │ AdaptCachedBodyGlobalFilter             │ 缓存请求体供多次读取（如 Predicate 中需要读取 body） │
+	 ├─────────────┼─────────────────────────────────────────┼──────────────────────────────────────────────────────┤
+	 │ -3          │ GlobalLocalResponseCacheGatewayFilter   │ 全局本地响应缓存                                     │
+	 ├─────────────┼─────────────────────────────────────────┼──────────────────────────────────────────────────────┤
+	 │ -1          │ NettyWriteResponseFilter                │ 将代理响应写回客户端（Netty 方式）                   │
+	 ├─────────────┼─────────────────────────────────────────┼──────────────────────────────────────────────────────┤
+	 │ -1          │ WebClientWriteResponseFilter            │ 将代理响应写回客户端（WebClient，已废弃）            │
+	 ├─────────────┼─────────────────────────────────────────┼──────────────────────────────────────────────────────┤
+	 │ 0           │ GatewayMetricsFilter                    │ 网关请求指标监控（Micrometer）                       │
+	 ├─────────────┼─────────────────────────────────────────┼──────────────────────────────────────────────────────┤
+	 │ 0           │ ForwardPathFilter                       │ 设置 forward 协议的请求路径                          │
+	 ├─────────────┼─────────────────────────────────────────┼──────────────────────────────────────────────────────┤
+	 │ 10000       │ RouteToRequestUrlFilter                 │ 合并路由 URI 和请求 URI，生成最终转发的目标 URL      │
+	 ├─────────────┼─────────────────────────────────────────┼──────────────────────────────────────────────────────┤
+	 │ 10010       │ StreamRoutingFilter                     │ stream 协议路由                                      │
+	 ├─────────────┼─────────────────────────────────────────┼──────────────────────────────────────────────────────┤
+	 │ 10010       │ FunctionRoutingFilter                   │ fn 协议路由（Spring Cloud Function）                 │
+	 ├─────────────┼─────────────────────────────────────────┼──────────────────────────────────────────────────────┤
+	 │ 10150       │ ReactiveLoadBalancerClientFilter        │ lb 协议负载均衡，选择具体服务实例                    │
+	 ├─────────────┼─────────────────────────────────────────┼──────────────────────────────────────────────────────┤
+	 │ 10151       │ LoadBalancerServiceInstanceCookieFilter │ 添加负载均衡实例 ID 到 Cookie（用于粘性会话）        │
+	 ├─────────────┼─────────────────────────────────────────┼──────────────────────────────────────────────────────┤
+	 │ 2147483646  │ WebsocketRoutingFilter                  │ ws/wss 协议 WebSocket 代理                           │
+	 ├─────────────┼─────────────────────────────────────────┼──────────────────────────────────────────────────────┤
+	 │ 2147483647  │ NettyRoutingFilter                      │ http/https 协议实际网络请求转发                      │
+	 ├─────────────┼─────────────────────────────────────────┼──────────────────────────────────────────────────────┤
+	 │ 2147483647  │ WebClientHttpRoutingFilter              │ http/https 协议 WebClient 转发（已废弃）             │
+	 ├─────────────┼─────────────────────────────────────────┼──────────────────────────────────────────────────────┤
+	 │ 2147483647  │ ForwardRoutingFilter                    │ forward 协议内部转发到 DispatcherHandler             │
+	 └─────────────┴─────────────────────────────────────────┴──────────────────────────────────────────────────────┘
 	 */
+
 
 	public static void main(String[] args) {
 		System.setProperty("nacos.logging.default.config.enabled", "false");

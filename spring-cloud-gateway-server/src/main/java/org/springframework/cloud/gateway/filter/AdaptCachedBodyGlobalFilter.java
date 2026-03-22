@@ -34,10 +34,15 @@ import static org.springframework.cloud.gateway.support.ServerWebExchangeUtils.C
 import static org.springframework.cloud.gateway.support.ServerWebExchangeUtils.CACHED_SERVER_HTTP_REQUEST_DECORATOR_ATTR;
 import static org.springframework.cloud.gateway.support.ServerWebExchangeUtils.GATEWAY_ROUTE_ATTR;
 
+//用来添加缓存的Filter
 public class AdaptCachedBodyGlobalFilter implements GlobalFilter, Ordered, ApplicationListener<EnableBodyCachingEvent> {
 
 	private ConcurrentMap<String, Boolean> routesToCache = new ConcurrentHashMap<>();
 
+	/**
+	 * 当我们配置了 RetryGatewayFilterFactory 重试时，会在执行重试逻辑时发布EnableBodyCachingEvent，此处会监听到该事件
+	 * @param event
+	 */
 	@Override
 	public void onApplicationEvent(EnableBodyCachingEvent event) {
 		this.routesToCache.putIfAbsent(event.getRouteId(), true);
@@ -48,6 +53,11 @@ public class AdaptCachedBodyGlobalFilter implements GlobalFilter, Ordered, Appli
 		// the cached ServerHttpRequest is used when the ServerWebExchange can not be
 		// mutated, for example, during a predicate where the body is read, but still
 		// needs to be cached.
+		/**
+		 * 从上下文获取CACHED_SERVER_HTTP_REQUEST_DECORATOR_ATTR，CACHED_SERVER_HTTP_REQUEST_DECORATOR_ATTR通过名称可以看出来就是请求的封装
+		 * 当使用了ReadBodyRoutePredicateFactory时，test时会将请求body放入上下文中，此处的缓存主要是为了后边不用再序列化
+		 * 如果不为空，表示请求和请求体都已经缓存了，则通过缓存的request构建一个上下文请求
+		 */
 		ServerHttpRequest cachedRequest = exchange.getAttributeOrDefault(CACHED_SERVER_HTTP_REQUEST_DECORATOR_ATTR,
 				null);
 		if (cachedRequest != null) {
@@ -55,15 +65,20 @@ public class AdaptCachedBodyGlobalFilter implements GlobalFilter, Ordered, Appli
 			return chain.filter(exchange.mutate().request(cachedRequest).build());
 		}
 
+		//如果上边没有从上下文中获取到缓存，则获取CACHED_REQUEST_BODY_ATTR
+		// CACHED_REQUEST_BODY_ATTR是请求体的缓存，此处的缓存可能是想让我们通过自定义Predicate或者Filter的方式在此Filter之前将body先序列化缓存
 		DataBuffer body = exchange.getAttributeOrDefault(CACHED_REQUEST_BODY_ATTR, null);
 		Route route = exchange.getAttribute(GATEWAY_ROUTE_ATTR);
 
-		// 已经缓存过了
+		//此处判断body是否为空或者routesToCache是否包含当前路由ID，表示当前请求已经被缓存过
+		//routesToCache在#onApplicationEvent中可能会put值
 		if (body != null || !this.routesToCache.containsKey(route.getId())) {
 			return chain.filter(exchange);
 		}
 
 		/**
+		 * 如果上边的条件都不满足，则会将当前请求Body放到缓存中
+		 *
 		 * 1. 第一个参数是当前的请求
 		 * 2. 第二个是个参数
 		 *
@@ -71,12 +86,13 @@ public class AdaptCachedBodyGlobalFilter implements GlobalFilter, Ordered, Appli
 		 */
 		return ServerWebExchangeUtils.cacheRequestBody(exchange, (serverHttpRequest) -> {
 			// don't mutate and build if same request object
+			//如果是同一个请求，则直接执行Filter逻辑
 			if (serverHttpRequest == exchange.getRequest()) {
 				return chain.filter(exchange);
 			}
 
 			/**
-			 * 把当前请求复制一下, 再设置一下serverHttpRequest
+			 * 否则，通过新的请求构建一个请求上下文
 			 * serverHttpRequest 变成了新的 Request对象
 			 */
 			return chain.filter(exchange.mutate().request(serverHttpRequest).build());

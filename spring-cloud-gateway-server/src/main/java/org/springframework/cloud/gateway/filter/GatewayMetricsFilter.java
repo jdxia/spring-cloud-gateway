@@ -34,6 +34,24 @@ import org.springframework.web.server.ServerWebExchange;
 /**
  * @author Tony Clarke
  * @author Ingyu Hwang
+ *
+ * 网关指标监控过滤器，需要添加spring-boot-starter-actuator依赖，
+ * 可通过spring.cloud.gateway.metrics.enabled=true/false进行配置，默认为开启状态。
+ * 可以通过/actuator/metrics/gateway.requests来访问查看。
+ *
+ * 可提供如下数据：
+ *
+ * routeId
+ * routUrI
+ * outcome：结果，按HttpStatus.Series分类。
+ * 		INFORMATIONAL
+ * 		SUCCESSFUL
+ * 		REDIRECTION
+ * 		CLIENT_ERROR
+ * 		SERVER_ERROR
+ * statue**：状态**
+ * httpStatusCode：状态码
+ * httpMethod：请求方式
  */
 public class GatewayMetricsFilter implements GlobalFilter, Ordered {
 
