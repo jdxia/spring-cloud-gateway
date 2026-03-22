@@ -34,6 +34,12 @@ import static org.springframework.cloud.gateway.support.ServerWebExchangeUtils.a
 
 /**
  * @author Spencer Gibb
+ *
+ * 当结合注册中心时SCG会为每个路由添加PathRoutePredicateFactory
+ * 和RewritePathGatewayFilterFactory。PathRoutePredicateFactory用来计算请求是否符合当前路由的条件，
+ * RewritePathGatewayFilterFactory用来重写请求Path，
+ * 参数regexp=/user-service/(?<remaining>.*)，replacement=$(remaining)，
+ * 例如请求的Path为/user-service/api/hello，会被重写为/api/hello
  */
 public class RewritePathGatewayFilterFactory
 		extends AbstractGatewayFilterFactory<RewritePathGatewayFilterFactory.Config> {
@@ -75,18 +81,24 @@ public class RewritePathGatewayFilterFactory
 				ServerHttpRequest req = exchange.getRequest();
 
 				// 添加 原始请求URI 到 GATEWAY_ORIGINAL_REQUEST_URL_ATTR
+				//每次进行重写时，都在上下文中保留一次原址的请求URI
 				addOriginalRequestUrl(exchange, req.getURI());
 
 				// 重写 Path
 				String path = req.getURI().getRawPath();
+
+				//根据配置的正则进行替换
+				// regexp=/user-service/(?<remaining>.*)，replacement=$(remaining)，例如请求的Path为/user-service/api/hello，会被重写为/api/hello。
 				String newPath = pattern.matcher(path).replaceAll(replacement);
 
 				// 创建新的 ServerHttpRequest
+				//基于重写后的Path构建新的请求
 				ServerHttpRequest request = req.mutate()
 						// 设置 Path
 						.path(newPath).build();
 
 				// 添加 请求URI 到 GATEWAY_REQUEST_URL_ATTR
+				//将新的请求URI放入上下文中，供后边的Filter使用
 				exchange.getAttributes().put(GATEWAY_REQUEST_URL_ATTR, request.getURI());
 
 				// 创建新的 ServerWebExchange ，提交过滤器链继续过滤

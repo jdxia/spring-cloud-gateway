@@ -58,7 +58,9 @@ public class GatewayDiscoveryClientAutoConfiguration {
 
 		// add a predicate that matches the url at /serviceId/**
 		PredicateDefinition predicate = new PredicateDefinition();
+		//设置Predicate名称，Path，DiscoveryRouteDefinition 会使用 PathRoutePredicateFactory
 		predicate.setName(normalizeRoutePredicateName(PathRoutePredicateFactory.class));
+		//设置Path参数，serviceId会在DiscoveryClientRouteDefinitionLocator#getRouteDefinition中替换为注册中心上的服务名，例如user-service
 		predicate.addArg(PATTERN_KEY, "'/'+serviceId+'/**'");
 		definitions.add(predicate);
 		return definitions;
@@ -69,7 +71,9 @@ public class GatewayDiscoveryClientAutoConfiguration {
 
 		// add a filter that removes /serviceId by default
 		FilterDefinition filter = new FilterDefinition();
+		//设置使用的过滤器，此处使用RewritePathGatewayFilterFactory，因为后边会重写请求Path
 		filter.setName(normalizeFilterFactoryName(RewritePathGatewayFilterFactory.class));
+		//同Predicate，会在DiscoveryClientRouteDefinitionLocator#getRouteDefinition中将'service-id'替换为注册中心上的服务名，例如 /user-service/(?<remaining>.*)
 		String regex = "'/' + serviceId + '/?(?<remaining>.*)'";
 		String replacement = "'/${remaining}'";
 		filter.addArg(REGEXP_KEY, regex);
@@ -82,15 +86,27 @@ public class GatewayDiscoveryClientAutoConfiguration {
 	@Bean
 	public DiscoveryLocatorProperties discoveryLocatorProperties() {
 		DiscoveryLocatorProperties properties = new DiscoveryLocatorProperties();
+		//设置Predicate
 		properties.setPredicates(initPredicates());
+		//设置GatewayFilter
 		properties.setFilters(initFilters());
 		return properties;
 	}
+
+	/**
+	 * 结合注册中心其实有两种DiscoveryClient使用，一种是原始的DiscoveryClient，一种是ReactiveDiscoveryClient，
+	 * 不同的注册中心都有相应的实现，
+	 * 如nacos的 NacosReactiveDiscoveryClient。可以通过配置spring.cloud.discovery.reactive.enabled=true来开启使用Reactive模式的
+	 */
 
 	@Configuration(proxyBeanMethods = false)
 	@ConditionalOnProperty(value = "spring.cloud.discovery.reactive.enabled", matchIfMissing = true)
 	public static class ReactiveDiscoveryClientRouteDefinitionLocatorConfiguration {
 
+		/**
+		 *
+		 * @param discoveryClient Reactive的实现，如果使用nacos，这里注入的为 {@link com.alibaba.cloud.nacos.discovery.reactive.NacosReactiveDiscoveryClient}
+		 */
 		@Bean
 		@ConditionalOnProperty(name = "spring.cloud.gateway.server.webflux.discovery.locator.enabled")
 		public DiscoveryClientRouteDefinitionLocator discoveryClientRouteDefinitionLocator(

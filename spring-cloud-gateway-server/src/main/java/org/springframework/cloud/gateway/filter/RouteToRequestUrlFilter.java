@@ -115,7 +115,8 @@ public class RouteToRequestUrlFilter implements GlobalFilter, Ordered {
 			throw new IllegalStateException("Invalid host: " + routeUri.toString());
 		}
 
-		// 生成一个合并的url
+		//生成RequestURL，并放入上下文中
+		//使用RouteUri的scheme，如果使用lb的话，那么此处生成的mergedUrl则是lb://xxxxxx
 		URI mergedUrl = UriComponentsBuilder.fromUri(uri)
 			// .uri(routeUri)
 			.scheme(routeUri.getScheme())

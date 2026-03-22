@@ -98,10 +98,12 @@ public class ReactiveLoadBalancerClientFilter implements GlobalFilter, Ordered {
 	public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
 		URI url = exchange.getAttribute(GATEWAY_REQUEST_URL_ATTR);
 		String schemePrefix = exchange.getAttribute(GATEWAY_SCHEME_PREFIX_ATTR);
+		//如果不是lb的请求，则不执行
 		if (url == null || (!"lb".equals(url.getScheme()) && !"lb".equals(schemePrefix))) {
 			return chain.filter(exchange);
 		}
 		// preserve the original url
+		//保留原始的请求地址
 		addOriginalRequestUrl(exchange, url);
 
 		if (log.isTraceEnabled()) {
@@ -119,7 +121,7 @@ public class ReactiveLoadBalancerClientFilter implements GlobalFilter, Ordered {
 				new RequestData(exchange.getRequest(), exchange.getAttributes()), getHint(serviceId)));
 
 		/**
-		 *
+		 * 负载均衡获取真实的服务信息
 		 */
 		return choose(lbRequest, serviceId, supportedLifecycleProcessors).doOnNext(response -> {
 
@@ -143,11 +145,14 @@ public class ReactiveLoadBalancerClientFilter implements GlobalFilter, Ordered {
 			DelegatingServiceInstance serviceInstance = new DelegatingServiceInstance(retrievedInstance,
 					overrideScheme);
 
+			// 使用最终调用服务信息构建URI
 			URI requestUrl = reconstructURI(serviceInstance, uri);
 
 			if (log.isTraceEnabled()) {
 				log.trace("LoadBalancerClientFilter url chosen: " + requestUrl);
 			}
+
+			//将请求URI放入上下文，供NettyRoutingFilter使用
 			exchange.getAttributes().put(GATEWAY_REQUEST_URL_ATTR, requestUrl);
 			exchange.getAttributes().put(GATEWAY_LOADBALANCER_RESPONSE_ATTR, response);
 			supportedLifecycleProcessors.forEach(lifecycle -> lifecycle.onStartRequest(lbRequest, response));
@@ -177,6 +182,7 @@ public class ReactiveLoadBalancerClientFilter implements GlobalFilter, Ordered {
 			throw new NotFoundException("No loadbalancer available for " + serviceId);
 		}
 		supportedLifecycleProcessors.forEach(lifecycle -> lifecycle.onStart(lbRequest));
+		//此处调用RibbonLoadBalancer负载均衡获取真实服务信息
 		return loadBalancer.choose(lbRequest);
 	}
 

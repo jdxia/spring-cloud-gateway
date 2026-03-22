@@ -32,6 +32,11 @@ import org.springframework.util.Assert;
 // see ZuulDiscoveryRefreshListener
 // TODO: make abstract class in commons?
 public class RouteRefreshListener implements ApplicationListener<ApplicationEvent> {
+	/**
+	 * 在SCG中有RouteRefreshListener用来监听刷新的事件，比如Nacos使用NacosWatch来发送HeartbeatEvent。
+	 *
+	 * RouteRefreshListener中监听到HeartbeatEvent后会发送RefreshRoutesEvent，CachingRouteLocator中监听了该事件，而后触发DiscoveryClientRouteDefinitionLocator#getRouteDefinition从注册中心重新获取一次服务信息，生成RouteDefinition
+	 */
 
 	private final ApplicationEventPublisher publisher;
 

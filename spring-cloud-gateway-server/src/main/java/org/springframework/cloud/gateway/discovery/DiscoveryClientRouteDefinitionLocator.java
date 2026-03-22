@@ -45,6 +45,8 @@ import org.springframework.util.StringUtils;
  * TODO: change to RouteLocator? use java dsl
  *
  * @author Spencer Gibb
+ *
+ * 主要工作是获取到所有的注册中心上的服务实例，根据服务信息创建PredicateDefnition->FilterDefinition->RouteDefinition。供CompositeRouteDefinitionLocator获取。
  */
 public class DiscoveryClientRouteDefinitionLocator implements RouteDefinitionLocator {
 
@@ -61,12 +63,14 @@ public class DiscoveryClientRouteDefinitionLocator implements RouteDefinitionLoc
 	public DiscoveryClientRouteDefinitionLocator(ReactiveDiscoveryClient discoveryClient,
 			DiscoveryLocatorProperties properties) {
 		this(discoveryClient.getClass().getSimpleName(), properties);
+		//通过对应注册中心的discoveryClient获取到所有的服务实例
 		serviceInstances = discoveryClient.getServices()
 			.flatMap(service -> discoveryClient.getInstances(service).collectList());
 	}
 
 	private DiscoveryClientRouteDefinitionLocator(String discoveryClientName, DiscoveryLocatorProperties properties) {
 		this.properties = properties;
+		//判断是否有路由ID前缀，如果没有则
 		if (StringUtils.hasText(properties.getRouteIdPrefix())) {
 			routeIdPrefix = properties.getRouteIdPrefix();
 		}
@@ -104,14 +108,17 @@ public class DiscoveryClientRouteDefinitionLocator implements RouteDefinitionLoc
 			// remove duplicates
 			.flatMapMany(map -> Flux.fromIterable(map.values()))
 			.map(instance -> {
+				//创建RouteDefinition
 				RouteDefinition routeDefinition = buildRouteDefinition(urlExpr, instance);
 
 				final ServiceInstance instanceForEval = new DelegatingServiceInstance(instance, properties);
 
 				for (PredicateDefinition original : this.properties.getPredicates()) {
+					//根据服务信息重新构建PredicateDefinition
 					PredicateDefinition predicate = new PredicateDefinition();
 					predicate.setName(original.getName());
 					for (Map.Entry<String, String> entry : original.getArgs().entrySet()) {
+						//将Path参数值的service-id替换为服务名称，如/user-service/**
 						String value = getValueFromExpr(evalCtxt, parser, instanceForEval, entry);
 						predicate.addArg(entry.getKey(), value);
 					}
@@ -122,6 +129,7 @@ public class DiscoveryClientRouteDefinitionLocator implements RouteDefinitionLoc
 					FilterDefinition filter = new FilterDefinition();
 					filter.setName(original.getName());
 					for (Map.Entry<String, String> entry : original.getArgs().entrySet()) {
+						//将Filter的regex -> '/' + serviceId + '/(?<remaining>.*)' 中的serviceId替换为服务ID 如user-service
 						String value = getValueFromExpr(evalCtxt, parser, instanceForEval, entry);
 						filter.addArg(entry.getKey(), value);
 					}
@@ -133,15 +141,18 @@ public class DiscoveryClientRouteDefinitionLocator implements RouteDefinitionLoc
 	}
 
 	protected RouteDefinition buildRouteDefinition(Expression urlExpr, ServiceInstance serviceInstance) {
+		//获取服务ID，默认小写
 		String serviceId = serviceInstance.getServiceId();
 		RouteDefinition routeDefinition = new RouteDefinition();
 		// 设置 ID
 		routeDefinition.setId(this.routeIdPrefix + serviceId);
 
 		// 设置url
+		//通过Spel解析器生成RouteUri
 		String uri = urlExpr.getValue(this.evalCtxt, serviceInstance, String.class);
 		routeDefinition.setUri(URI.create(uri));
 		// add instance metadata
+		//设置元数据信息，包括权重、健康状态等
 		routeDefinition.setMetadata(new LinkedHashMap<>(serviceInstance.getMetadata()));
 		return routeDefinition;
 	}
