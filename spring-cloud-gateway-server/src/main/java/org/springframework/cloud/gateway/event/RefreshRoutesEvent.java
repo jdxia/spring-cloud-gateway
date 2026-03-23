@@ -18,11 +18,14 @@ package org.springframework.cloud.gateway.event;
 
 import java.util.Map;
 
+import org.springframework.cloud.gateway.route.CachingRouteLocator;
 import org.springframework.context.ApplicationEvent;
 import org.springframework.util.CollectionUtils;
 
 /**
  * @author Spencer Gibb
+ *
+ * 会触发到 {@link CachingRouteLocator#onApplicationEvent(RefreshRoutesEvent)}
  */
 public class RefreshRoutesEvent extends ApplicationEvent {
 

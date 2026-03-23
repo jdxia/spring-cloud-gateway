@@ -5,6 +5,8 @@ import java.util.Map;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cloud.client.loadbalancer.reactive.ReactorLoadBalancerExchangeFilterFunction;
+import org.springframework.cloud.gateway.discovery.DiscoveryClientRouteDefinitionLocator;
+import org.springframework.cloud.gateway.discovery.GatewayDiscoveryClientAutoConfiguration;
 import org.springframework.cloud.gateway.handler.RoutePredicateHandlerMapping;
 import org.springframework.cloud.gateway.route.RouteDefinition;
 import org.springframework.cloud.gateway.route.RouteDefinitionRouteLocator;
@@ -93,6 +95,13 @@ public class GatewaySampleApplication {
 	 └─────────────┴─────────────────────────────────────────┴──────────────────────────────────────────────────────┘
 	 */
 
+
+	/**
+	 * 注册中心自动路由需要看
+	 * {@link GatewayDiscoveryClientAutoConfiguration}
+	 * 还有
+	 * {@link DiscoveryClientRouteDefinitionLocator}
+	 */
 
 	public static void main(String[] args) {
 		System.setProperty("nacos.logging.default.config.enabled", "false");

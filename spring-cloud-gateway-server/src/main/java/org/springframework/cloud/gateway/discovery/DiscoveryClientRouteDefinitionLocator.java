@@ -46,7 +46,8 @@ import org.springframework.util.StringUtils;
  *
  * @author Spencer Gibb
  *
- * 主要工作是获取到所有的注册中心上的服务实例，根据服务信息创建PredicateDefnition->FilterDefinition->RouteDefinition。供CompositeRouteDefinitionLocator获取。
+ * 主要工作是获取到所有的注册中心上的服务实例，根据服务信息创建 PredicateDefnition -> FilterDefinition -> RouteDefinition
+ * 供CompositeRouteDefinitionLocator获取
  */
 public class DiscoveryClientRouteDefinitionLocator implements RouteDefinitionLocator {
 
@@ -63,18 +64,25 @@ public class DiscoveryClientRouteDefinitionLocator implements RouteDefinitionLoc
 	public DiscoveryClientRouteDefinitionLocator(ReactiveDiscoveryClient discoveryClient,
 			DiscoveryLocatorProperties properties) {
 		this(discoveryClient.getClass().getSimpleName(), properties);
-		//通过对应注册中心的discoveryClient获取到所有的服务实例
+
+		/**
+		 * 通过对应注册中心的discoveryClient获取到所有的服务实例
+		 * {@link com.alibaba.cloud.nacos.discovery.reactive.NacosReactiveDiscoveryClient#getServices()}
+		 */
 		serviceInstances = discoveryClient.getServices()
 			.flatMap(service -> discoveryClient.getInstances(service).collectList());
 	}
 
 	private DiscoveryClientRouteDefinitionLocator(String discoveryClientName, DiscoveryLocatorProperties properties) {
 		this.properties = properties;
-		//判断是否有路由ID前缀，如果没有则
+
+		//判断是否有路由ID前缀，如果没有则用默认的
 		if (StringUtils.hasText(properties.getRouteIdPrefix())) {
+			// 使用自定义前缀
 			routeIdPrefix = properties.getRouteIdPrefix();
 		}
 		else {
+			// 默认：NacosReactiveDiscoveryClient_
 			routeIdPrefix = discoveryClientName + "_";
 		}
 		evalCtxt = SimpleEvaluationContext.forReadOnlyDataBinding().withInstanceMethods().build();
@@ -101,9 +109,16 @@ public class DiscoveryClientRouteDefinitionLocator implements RouteDefinitionLoc
 			};
 		}
 
+		// 在流处理中应用过滤
+		// 过滤空服务
 		return serviceInstances.filter(instances -> !instances.isEmpty())
 			.flatMap(Flux::fromIterable)
+				/**
+				 * 在这里应用过滤
+				 * 可用的变量来自 {@link ServiceInstance}
+				 */
 			.filter(includePredicate)
+				// 按 serviceId 去重
 			.collectMap(ServiceInstance::getServiceId)
 			// remove duplicates
 			.flatMapMany(map -> Flux.fromIterable(map.values()))
@@ -119,6 +134,7 @@ public class DiscoveryClientRouteDefinitionLocator implements RouteDefinitionLoc
 					predicate.setName(original.getName());
 					for (Map.Entry<String, String> entry : original.getArgs().entrySet()) {
 						//将Path参数值的service-id替换为服务名称，如/user-service/**
+						// 例如：'/'+serviceId+'/**' → /user-service/**
 						String value = getValueFromExpr(evalCtxt, parser, instanceForEval, entry);
 						predicate.addArg(entry.getKey(), value);
 					}

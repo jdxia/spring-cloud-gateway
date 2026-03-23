@@ -36,7 +36,7 @@ spring:
         group: http   # 和dubbo区分开来
         cluster-name: DEFAULT
         ip-type: IPv4
-        secure: false  # 走http
+        secure: false  # 走http, true才会在metadata显示, 因为默认就是false
         network-interface: en0  # todo: macOS 一般是 en0，Linux 一般是 eth0
         fail-fast: true # 强依赖nacos失败就不启动
         # 手动注册时必须显式指定

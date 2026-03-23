@@ -20,6 +20,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.cloud.client.ServiceInstance;
 import org.springframework.cloud.gateway.filter.FilterDefinition;
 import org.springframework.cloud.gateway.handler.predicate.PredicateDefinition;
 import org.springframework.core.style.ToStringCreator;
@@ -27,7 +28,10 @@ import org.springframework.core.style.ToStringCreator;
 /**
  * DiscoveryLocatorProperties与GatewayProperties类似用于读取discovery相关的配置，
  * 通过 DiscoveryLocatorProperties 装配DiscoveryClientRouteDefinitionLocator，DiscoveryClientRouteDefinitionLocator是RouteDefinitionLocator的子类，
- * 也是用来存放RouteDefinition的，最终会同PropertiesRouteDefinitionLocator一样被组合到CompositeRouteDefinitionLocator中。
+ * 也是用来存放RouteDefinition的，最终会同PropertiesRouteDefinitionLocator一样被组合到CompositeRouteDefinitionLocator中
+ *
+ *
+ * spring.cloud.gateway.server.webflux.discovery.locator.enabled 开启后,自动为注册中心所有服务创建路由
  */
 @ConfigurationProperties("spring.cloud.gateway.server.webflux.discovery.locator")
 public class DiscoveryLocatorProperties {
@@ -40,7 +44,14 @@ public class DiscoveryLocatorProperties {
 	 * The prefix for the routeId, defaults to discoveryClient.getClass().getSimpleName()
 	 * + "_". Service Id will be appended to create the routeId.
 	 *
-	 * 路由ID前缀，默认为DiscoveryClient的类名称 {@link org.springframework.cloud.client.discovery.DiscoveryClient}
+	 * 路由ID前缀，
+	 * 默认为DiscoveryClient的类名称
+	 * {@link org.springframework.cloud.client.discovery.DiscoveryClient}
+	 * {@link com.alibaba.cloud.nacos.discovery.reactive.NacosReactiveDiscoveryClient}
+	 *
+	 * 默认：NacosReactiveDiscoveryClient_
+	 *
+	 * 是在 {@link DiscoveryClientRouteDefinitionLocator#DiscoveryClientRouteDefinitionLocator(String, DiscoveryLocatorProperties)} 处理的
 	 */
 	private String routeIdPrefix;
 
@@ -48,7 +59,18 @@ public class DiscoveryLocatorProperties {
 	 * SpEL expression that will evaluate whether to include a service in gateway
 	 * integration or not, defaults to: true.
 	 *
-	 * 是否使用SpEL表达式
+	 * 在这里有使用 {@link DiscoveryClientRouteDefinitionLocator#getRouteDefinitions()}
+	 * 可用的变量来自 {@link ServiceInstance}
+	 *
+	 * 是否使用SpEL表达式, 默认包含所有服务
+	 * # 只为服务名以 "api-" 开头的服务创建路由
+	 * include-expression: "serviceId.startsWith('api-')"
+	 *
+	 * # 只为特定元数据的服务创建路由
+	 * # include-expression: "metadata['gateway-enabled'] == 'true'"
+	 *
+	 * # 排除某些服务
+	 * # include-expression: "!serviceId.contains('internal')"
 	 */
 	private String includeExpression = "true";
 
@@ -63,11 +85,25 @@ public class DiscoveryLocatorProperties {
 	 * Option to lower case serviceId in predicates and filters, defaults to false. Useful
 	 * with eureka when it automatically uppercases serviceId. so MYSERIVCE, would match
 	 * /myservice/**
+	 *
+	 * 将服务 ID 转为小写，用于匹配 URL 路径
+	 * /USER-SERVICE/** → /user-service/**
 	 */
 	private boolean lowerCaseServiceId = false;
 
+	/**
+	 * 所有自动生成的路由添加统一的断言规则
+	 * 由 {@link GatewayDiscoveryClientAutoConfiguration#initPredicates()} 初始化
+	 *
+	 * 可以自定义覆盖这个
+	 */
 	private List<PredicateDefinition> predicates = new ArrayList<>();
 
+	/**
+	 *
+	 * 由 {@link GatewayDiscoveryClientAutoConfiguration#initFilters()} 初始化
+	 *
+	 */
 	private List<FilterDefinition> filters = new ArrayList<>();
 
 	public boolean isEnabled() {

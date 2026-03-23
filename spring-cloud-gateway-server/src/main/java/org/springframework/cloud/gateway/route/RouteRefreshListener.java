@@ -49,17 +49,21 @@ public class RouteRefreshListener implements ApplicationListener<ApplicationEven
 
 	@Override
 	public void onApplicationEvent(ApplicationEvent event) {
+		//  应用启动完成 - 触发初始路由加载
 		if (event instanceof ContextRefreshedEvent refreshedEvent) {
+			// 排除 management 和 loadBalancer 子上下文
 			boolean isManagementCtxt = WebServerApplicationContext
 				.hasServerNamespace(refreshedEvent.getApplicationContext(), "management");
 			boolean isLoadBalancerCtxt = refreshedEvent.getApplicationContext().getDisplayName() != null
 					&& refreshedEvent.getApplicationContext().getDisplayName().startsWith("LoadBalancerClientFactory-");
 
 			if (!isManagementCtxt && !isLoadBalancerCtxt) {
+				// 发布 RefreshRoutesEvent
 				reset();
 			}
 		}
 		else if (event instanceof RefreshScopeRefreshedEvent || event instanceof InstanceRegisteredEvent) {
+			// nacos 刷新
 			reset();
 		}
 		else if (event instanceof ParentHeartbeatEvent parentHeartbeatEvent) {

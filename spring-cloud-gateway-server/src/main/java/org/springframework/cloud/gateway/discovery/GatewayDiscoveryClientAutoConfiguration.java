@@ -52,6 +52,28 @@ import static org.springframework.cloud.gateway.support.NameUtils.normalizeRoute
 @EnableConfigurationProperties
 public class GatewayDiscoveryClientAutoConfiguration {
 
+	/**
+	 * spring:
+	 *     cloud:
+	 *       gateway:
+	 *         server:
+	 *           webflux:
+	 *             discovery:
+	 *               locator:
+	 *                 predicates:
+	 *                   # 覆盖默认的 Path 断言
+	 *                   - name: Path
+	 *                     args:
+	 *                       pattern: "'/api/'+serviceId+'/**'"  # /api/user-service/**
+	 *
+	 *                   # 添加额外断言
+	 *                   - name: Method
+	 *                     args:
+	 *                       methods: "'GET,POST'"
+	 *
+	 *  会在这个里面 {@link GatewayDiscoveryClientAutoConfiguration#discoveryLocatorProperties()} 添加进去
+	 *
+	 */
 	public static List<PredicateDefinition> initPredicates() {
 		ArrayList<PredicateDefinition> definitions = new ArrayList<>();
 		// TODO: add a predicate that matches the url at /serviceId?
@@ -60,12 +82,52 @@ public class GatewayDiscoveryClientAutoConfiguration {
 		PredicateDefinition predicate = new PredicateDefinition();
 		//设置Predicate名称，Path，DiscoveryRouteDefinition 会使用 PathRoutePredicateFactory
 		predicate.setName(normalizeRoutePredicateName(PathRoutePredicateFactory.class));
-		//设置Path参数，serviceId会在DiscoveryClientRouteDefinitionLocator#getRouteDefinition中替换为注册中心上的服务名，例如user-service
+
+		/**'
+		 * 设置Path参数，
+		 * serviceId会在 {@link DiscoveryClientRouteDefinitionLocator#getRouteDefinitions()} 中替换为注册中心上的服务名，例如user-service
+		 *
+		 * 核心是 DiscoveryClientRouteDefinitionLocator 主要工作是获取到所有的注册中心上的服务实例，
+		 * 根据服务信息创建 PredicateDefinition -> FilterDefinition -> RouteDefinition
+		 * 供 CompositeRouteDefinitionLocator 获取
+		 */
 		predicate.addArg(PATTERN_KEY, "'/'+serviceId+'/**'");
 		definitions.add(predicate);
 		return definitions;
 	}
 
+	/**
+	 * 为所有自动生成的路由添加统一的过滤器
+	 * 请求 URL: /user-service/api/users/1
+	 *            ↓ RewritePath
+	 *   转发到后端: /api/users/1  (去掉了 /user-service 前缀)
+	 *
+	 * spring:
+	 *     cloud:
+	 *       gateway:
+	 *         server:
+	 *           webflux:
+	 *             discovery:
+	 *               locator:
+	 *                 filters:
+	 *                   # 保留默认的 RewritePath
+	 *                   - name: RewritePath
+	 *                     args:
+	 *                       regexp: "'/' + serviceId + '/?(?<remaining>.*)'"
+	 *                       replacement: "'/${remaining}'"
+	 *
+	 *                   # 添加额外过滤器
+	 *                   - name: AddRequestHeader
+	 *                     args:
+	 *                       name: "'X-Service-Source'"
+	 *                       value: "'gateway'"
+	 *
+	 *                   # 添加请求耗时统计
+	 *                   - name: AddRequestHeader
+	 *                     args:
+	 *                       name: "'X-Request-Start'"
+	 *                       value: "T(java.lang.System).currentTimeMillis()"
+	 */
 	public static List<FilterDefinition> initFilters() {
 		ArrayList<FilterDefinition> definitions = new ArrayList<>();
 
@@ -73,7 +135,12 @@ public class GatewayDiscoveryClientAutoConfiguration {
 		FilterDefinition filter = new FilterDefinition();
 		//设置使用的过滤器，此处使用RewritePathGatewayFilterFactory，因为后边会重写请求Path
 		filter.setName(normalizeFilterFactoryName(RewritePathGatewayFilterFactory.class));
-		//同Predicate，会在DiscoveryClientRouteDefinitionLocator#getRouteDefinition中将'service-id'替换为注册中心上的服务名，例如 /user-service/(?<remaining>.*)
+
+		/**
+		 * 同Predicate，
+		 * 会在 {@link DiscoveryClientRouteDefinitionLocator#getRouteDefinitions()}
+		 * 将'service-id'替换为注册中心上的服务名，例如 /user-service/(?<remaining>.*)
+		 */
 		String regex = "'/' + serviceId + '/?(?<remaining>.*)'";
 		String replacement = "'/${remaining}'";
 		filter.addArg(REGEXP_KEY, regex);
@@ -98,19 +165,21 @@ public class GatewayDiscoveryClientAutoConfiguration {
 	 * 不同的注册中心都有相应的实现，
 	 * 如nacos的 NacosReactiveDiscoveryClient。可以通过配置spring.cloud.discovery.reactive.enabled=true来开启使用Reactive模式的
 	 */
-
 	@Configuration(proxyBeanMethods = false)
 	@ConditionalOnProperty(value = "spring.cloud.discovery.reactive.enabled", matchIfMissing = true)
 	public static class ReactiveDiscoveryClientRouteDefinitionLocatorConfiguration {
 
 		/**
 		 *
-		 * @param discoveryClient Reactive的实现，如果使用nacos，这里注入的为 {@link com.alibaba.cloud.nacos.discovery.reactive.NacosReactiveDiscoveryClient}
+		 * @param discoveryClient Reactive的实现，如果使用nacos，
+		 * 这里注入的为 {@link com.alibaba.cloud.nacos.discovery.reactive.NacosReactiveDiscoveryClient}
 		 */
 		@Bean
 		@ConditionalOnProperty(name = "spring.cloud.gateway.server.webflux.discovery.locator.enabled")
 		public DiscoveryClientRouteDefinitionLocator discoveryClientRouteDefinitionLocator(
 				ReactiveDiscoveryClient discoveryClient, DiscoveryLocatorProperties properties) {
+
+			// 构造函数执行, 此时就已经开始订阅注册中心的服务了
 			return new DiscoveryClientRouteDefinitionLocator(discoveryClient, properties);
 		}
 

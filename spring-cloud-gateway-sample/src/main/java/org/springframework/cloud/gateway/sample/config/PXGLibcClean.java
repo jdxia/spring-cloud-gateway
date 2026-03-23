@@ -50,17 +50,6 @@ public class PXGLibcClean implements ApplicationContextInitializer<ConfigurableA
      */
     public static final String TRIM_HOURS = "px.glibc.trim.hours";
 
-    /**
-     * 剩余内存告警阈值，默认 500MB（单位 KB）
-     * 当容器 memory limit - RSS before < 此值时，打印 error 日志
-     */
-    private static final long REMAINING_MEMORY_THRESHOLD_KB = 500L * 1024; // 500MB
-
-    // cgroup v2 memory limit 文件路径
-    private static final String CGROUP_V2_MEMORY_MAX = "/sys/fs/cgroup/memory.max";
-    // cgroup v1 memory limit 文件路径
-    private static final String CGROUP_V1_MEMORY_LIMIT = "/sys/fs/cgroup/memory/memory.limit_in_bytes";
-
     // 线程池（用于调度和执行）
     private ScheduledThreadPoolExecutor scheduler;
     private int trimHours;
@@ -256,8 +245,6 @@ public class PXGLibcClean implements ApplicationContextInitializer<ConfigurableA
                 int exitCode = process.exitValue();
                 if (exitCode == 0) {
                     log.info("[PXGLibcClean] jcmd 调用成功: {}", output.toString().trim());
-                    // 提取 RSS after 的值并判断是否 >= 74 开头
-                    extractAndLogRssAfter(output.toString());
                 } else {
                     log.error("[PXGLibcClean] jcmd 调用失败: exitCode={}", exitCode);
                 }
@@ -280,116 +267,6 @@ public class PXGLibcClean implements ApplicationContextInitializer<ConfigurableA
                     log.error("[PXGLibcClean] 关闭 jcmd {} 进程时发生异常:", COMMAND_ARG, t);
                 }
             }
-        }
-    }
-
-    /**
-	 * 7:
-	 * Attempting trim...
-	 * Done.
-	 * Virtual size before: 41419608k, after: 41419204k, (-404k)
-	 * RSS before: 7336112k, after: 7010796k, (-325316k)
-	 * Swap before: 0k, after: 0k, (0k)
-	 *
-     * 提取 RSS before 的值，结合容器 memory limit 判断剩余内存是否不足
-     * 如果 limit - before < 500MB 则输出 error 日志
-     * 日志格式示例: RSS before: 7336112k, after: 7010796k, (-325316k)
-     */
-    private void extractAndLogRssAfter(String output) {
-        if (output == null || output.isEmpty()) {
-            return;
-        }
-
-		try {
-			Matcher matcher = RSS_PATTERN.matcher(output);
-			if (matcher.find()) {
-				String beforeValue = matcher.group(1);
-				String afterValue = matcher.group(2);
-				log.info("[PXGLibcClean] RSS before: {}k", beforeValue);
-				log.info("[PXGLibcClean] RSS after: {}k", afterValue);
-
-				long beforeKB = Long.parseLong(beforeValue);
-
-				// 获取容器 memory limit，计算剩余可用内存
-				long limitKB = getContainerMemoryLimitKB();
-				if (limitKB > 0) {
-					long remainingKB = limitKB - beforeKB;
-					long remainingMB = remainingKB / 1024;
-					log.info("[PXGLibcClean] 容器 memory limit: {}MB, RSS before: {}MB, 剩余: {}MB",
-							limitKB / 1024, beforeKB / 1024, remainingMB);
-
-					if (remainingKB < REMAINING_MEMORY_THRESHOLD_KB) {
-						log.error("[PXGLibcClean] 剩余内存不足! limit: {}MB, RSS: {}MB, 剩余仅: {}MB (阈值: {}MB), "
-										+ "建议把一些RocketMQ线程调低或者其他内存调低给堆外腾出空间",
-								limitKB / 1024, beforeKB / 1024, remainingMB,
-								REMAINING_MEMORY_THRESHOLD_KB / 1024);
-					}
-				} else {
-					// 无法获取 limit 时，保留原来的兜底逻辑：前两位 >= 76 才告警
-					if (beforeValue.length() >= 2 && Integer.parseInt(beforeValue.substring(0, 2)) >= 76) {
-						log.error("[PXGLibcClean] RSS 过大: {}k, 建议把一些RocketMQ线程调低或者其他内存调低给堆外腾出空间", beforeValue);
-					}
-				}
-			}
-		} catch (Throwable t) {
-			log.warn("[PXGLibcClean] 提取 RSS 值时发生异常:", t);
-		}
-    }
-
-
-    /**
-     * 获取容器 memory limit（单位 KB）
-     * 优先读取 cgroup v2，回退到 cgroup v1
-     *
-     * cgroup v2: /sys/fs/cgroup/memory.max（值为字节数，或 "max" 表示无限制）
-     * cgroup v1: /sys/fs/cgroup/memory/memory.limit_in_bytes（值为字节数）
-     *
-     * @return memory limit（KB），获取失败或无限制时返回 -1
-     */
-    private long getContainerMemoryLimitKB() {
-        // 先尝试 cgroup v2
-        long limitKB = readCgroupMemoryLimit(CGROUP_V2_MEMORY_MAX);
-        if (limitKB > 0) {
-            return limitKB;
-        }
-        // 回退到 cgroup v1
-        limitKB = readCgroupMemoryLimit(CGROUP_V1_MEMORY_LIMIT);
-        if (limitKB > 0) {
-            return limitKB;
-        }
-        log.warn("[PXGLibcClean] 无法获取容器 memory limit，cgroup 文件不存在或不可读");
-        return -1;
-    }
-
-    /**
-     * 读取 cgroup memory limit 文件
-     *
-     * @param filePath cgroup 文件路径
-     * @return memory limit（KB），获取失败或无限制时返回 -1
-     */
-    private long readCgroupMemoryLimit(String filePath) {
-        try {
-            java.nio.file.Path path = java.nio.file.Paths.get(filePath);
-            if (!java.nio.file.Files.exists(path)) {
-                return -1;
-            }
-            String content = java.nio.file.Files.readString(path).trim();
-            // cgroup v2 中 "max" 表示无限制
-            if ("max".equalsIgnoreCase(content)) {
-                log.info("[PXGLibcClean] cgroup memory limit 为 max（无限制）: {}", filePath);
-                return -1;
-            }
-            long bytes = Long.parseLong(content);
-            // cgroup v1 中超大值（如接近 Long.MAX_VALUE）也表示无限制
-            // 通常 cgroup v1 无限制时值为 9223372036854771712
-            if (bytes >= Long.MAX_VALUE / 2) {
-                log.info("[PXGLibcClean] cgroup memory limit 无限制: {}", filePath);
-                return -1;
-            }
-            return bytes / 1024; // 转换为 KB
-        } catch (Throwable t) {
-            log.warn("[PXGLibcClean] 读取 cgroup memory limit 失败: {}", filePath, t);
-            return -1;
         }
     }
 
