@@ -27,6 +27,9 @@ spring:
   config:
     import: optional:nacos:${spring.application.name}
   cloud:
+#    discovery:
+#      reactive:
+#        enabled: true
     nacos:
 #      username: ${nacos.username}
 #      password: ${nacos.password}
@@ -70,6 +73,12 @@ spring:
         ttl: 10s
         capacity: 2048  # 默认是256 超过了就进行驱逐
     gateway.server.webflux:
+      enabled: true
+#      discovery:
+#        locator:
+#          # 启用服务发现, 并把服务名转小写
+#          enabled: true
+#          lowerCaseServiceId: true # 忽略服务名的大小写
       httpclient:
         connect-timeout: 3000          # 连接超时，毫秒
         response-timeout: 10s          # 响应超时
