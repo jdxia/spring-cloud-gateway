@@ -243,6 +243,9 @@ public final class ServerWebExchangeUtils {
 
 	/**
 	 * Gateway LoadBalancer {@link Response} attribute name.
+	 *
+	 * Spring Cloud Gateway 在 ServerWebExchange（网关请求上下文）中存放负载均衡选择结果的属性 key
+	 * 里面会放 负载均衡器（LoadBalancer）从多个服务实例中选择出来的那个具体实例的封装对象
 	 */
 	public static final String GATEWAY_LOADBALANCER_RESPONSE_ATTR = qualify("gatewayLoadBalancerResponse");
 

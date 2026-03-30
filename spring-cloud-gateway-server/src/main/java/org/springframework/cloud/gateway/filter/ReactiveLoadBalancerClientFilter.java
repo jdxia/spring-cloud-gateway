@@ -22,6 +22,7 @@ import java.util.Set;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.springframework.cloud.loadbalancer.core.RoundRobinLoadBalancer;
 import reactor.core.publisher.Mono;
 
 import org.springframework.cloud.client.ServiceInstance;
@@ -111,7 +112,13 @@ public class ReactiveLoadBalancerClientFilter implements GlobalFilter, Ordered {
 		}
 
 		URI requestUri = exchange.getAttribute(GATEWAY_REQUEST_URL_ATTR);
+
+		/**
+		 * 微服务名, 比如 user
+		 */
 		String serviceId = requestUri.getHost();
+
+		// 获取生命周期的处理器
 		Set<LoadBalancerLifecycle> supportedLifecycleProcessors = LoadBalancerLifecycleValidator
 			.getSupportedLifecycleProcessors(clientFactory.getInstances(serviceId, LoadBalancerLifecycle.class),
 					RequestDataContext.class, ResponseData.class, ServiceInstance.class);
@@ -122,6 +129,7 @@ public class ReactiveLoadBalancerClientFilter implements GlobalFilter, Ordered {
 
 		/**
 		 * 负载均衡获取真实的服务信息
+		 * choose是选择负载均衡器
 		 */
 		return choose(lbRequest, serviceId, supportedLifecycleProcessors).doOnNext(response -> {
 
@@ -131,8 +139,28 @@ public class ReactiveLoadBalancerClientFilter implements GlobalFilter, Ordered {
 				throw NotFoundException.create(properties.isUse404(), "Unable to find instance for " + url.getHost());
 			}
 
+			/**
+			 * ServiceInstance 接口包含：
+			 ┌─────────────────┬────────────────────────────┐
+			 │      方法       │            说明            │
+			 ├─────────────────┼────────────────────────────┤
+			 │ getServiceId()  │ 服务名，如 "user-demo"     │
+			 ├─────────────────┼────────────────────────────┤
+			 │ getHost()       │ 实例 IP，如 "192.168.1.10" │
+			 ├─────────────────┼────────────────────────────┤
+			 │ getPort()       │ 端口，如 8892              │
+			 ├─────────────────┼────────────────────────────┤
+			 │ isSecure()      │ 是否 HTTPS                 │
+			 ├─────────────────┼────────────────────────────┤
+			 │ getUri()        │ 完整 URI                   │
+			 ├─────────────────┼────────────────────────────┤
+			 │ getMetadata()   │ 元数据（来自注册中心）     │
+			 ├─────────────────┼────────────────────────────┤
+			 │ getInstanceId() │ 实例唯一标识               │
+			 */
 			ServiceInstance retrievedInstance = response.getServer();
 
+			// 这个是 请求的url 要把这个替换掉, "http://127.0.0.1:8899/api/user-demo/test"
 			URI uri = exchange.getRequest().getURI();
 
 			// if the `lb:<scheme>` mechanism was used, use `<scheme>` as the default,
@@ -148,12 +176,22 @@ public class ReactiveLoadBalancerClientFilter implements GlobalFilter, Ordered {
 			// 使用最终调用服务信息构建URI
 			URI requestUrl = reconstructURI(serviceInstance, uri);
 
-			if (log.isTraceEnabled()) {
-				log.trace("LoadBalancerClientFilter url chosen: " + requestUrl);
-			}
+//			if (log.isTraceEnabled()) {
+//				log.trace("LoadBalancerClientFilter url chosen: " + requestUrl);
+//			}
+
+			// "http://192.168.33.53:8892/api/user-demo/test"
+			log.info("=====> debug ===> LoadBalancerClientFilter url chosen: " + requestUrl);
 
 			//将请求URI放入上下文，供NettyRoutingFilter使用
 			exchange.getAttributes().put(GATEWAY_REQUEST_URL_ATTR, requestUrl);
+
+			/**
+			 *   GATEWAY_LOADBALANCER_RESPONSE_ATTR 是 Spring Cloud Gateway 在 ServerWebExchange（网关请求上下文）中存放负载均衡选择结果的属性 key。
+			 *  response 是 Response<ServiceInstance> 类型，代表负载均衡器（LoadBalancer）从多个服务实例中选择出来的那个具体实例的封装对象。
+			 *
+			 *  下游的 {@link LoadBalancerServiceInstanceCookieFilter} 会消费这个
+			 */
 			exchange.getAttributes().put(GATEWAY_LOADBALANCER_RESPONSE_ATTR, response);
 			supportedLifecycleProcessors.forEach(lifecycle -> lifecycle.onStartRequest(lbRequest, response));
 		})
@@ -182,7 +220,10 @@ public class ReactiveLoadBalancerClientFilter implements GlobalFilter, Ordered {
 			throw new NotFoundException("No loadbalancer available for " + serviceId);
 		}
 		supportedLifecycleProcessors.forEach(lifecycle -> lifecycle.onStart(lbRequest));
-		//此处调用RibbonLoadBalancer负载均衡获取真实服务信息
+
+		/**
+		 *  此处调用  {@link RoundRobinLoadBalancer} 负载均衡获取真实服务信息
+		 */
 		return loadBalancer.choose(lbRequest);
 	}
 

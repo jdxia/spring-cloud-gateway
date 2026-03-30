@@ -59,6 +59,7 @@ public class LoadBalancerServiceInstanceCookieFilter implements GlobalFilter, Or
 
 	@Override
 	public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
+		// 上下文中读出之前存入的 response
 		Response<ServiceInstance> serviceInstanceResponse = exchange.getAttribute(GATEWAY_LOADBALANCER_RESPONSE_ATTR);
 		if (serviceInstanceResponse == null || !serviceInstanceResponse.hasServer()) {
 			return chain.filter(exchange);
@@ -75,6 +76,11 @@ public class LoadBalancerServiceInstanceCookieFilter implements GlobalFilter, Or
 		}
 		ServerWebExchange newExchange = exchange.mutate().request(exchange.getRequest().mutate().headers((headers) -> {
 			List<String> cookieHeaders = new ArrayList<>(headers.getOrEmpty(HttpHeaders.COOKIE));
+
+			/**
+			 * 如果开启了粘性会话配置，把 instanceId 写入 Cookie
+			 * 开启 sticky session 时，把选中的实例 ID 写到响应 Cookie 里，下次请求时客户端带上这个 Cookie，负载均衡器就会优先选择同一个实例，避免会话漂移
+			 */
 			String serviceInstanceCookie = new HttpCookie(instanceIdCookieName,
 					serviceInstanceResponse.getServer().getInstanceId())
 				.toString();
@@ -86,6 +92,7 @@ public class LoadBalancerServiceInstanceCookieFilter implements GlobalFilter, Or
 
 	@Override
 	public int getOrder() {
+		// 刚好在 ReactiveLoadBalancerClientFilter（10150）之后执行
 		return LOAD_BALANCER_CLIENT_FILTER_ORDER + 1;
 	}
 
