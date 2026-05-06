@@ -194,7 +194,7 @@ public class RoutePredicateHandlerMapping extends AbstractHandlerMapping {
 	protected Mono<Route> lookupRoute(ServerWebExchange exchange) {
 		/**
 		 * 从RouteLocator获取所有路由定义
-		 * routeLocator通常是CachingRouteLocator(带缓存)
+		 * routeLocator通常是 {@link CachingRouteLocator} (带缓存)
 		 */
 		return this.routeLocator.getRoutes().filterWhen(route -> {
 

@@ -19,6 +19,8 @@ package org.springframework.cloud.gateway.route;
 import reactor.core.publisher.Mono;
 
 /**
+ * 路由 一个统一的"写接口", 如果是统一读的话是 {@link RouteDefinitionLocator}
+ *
  * @author Spencer Gibb
  */
 public interface RouteDefinitionWriter {

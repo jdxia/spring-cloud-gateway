@@ -163,7 +163,8 @@ public class GatewayDiscoveryClientAutoConfiguration {
 	/**
 	 * 结合注册中心其实有两种DiscoveryClient使用，一种是原始的DiscoveryClient，一种是ReactiveDiscoveryClient，
 	 * 不同的注册中心都有相应的实现，
-	 * 如nacos的 NacosReactiveDiscoveryClient。可以通过配置spring.cloud.discovery.reactive.enabled=true来开启使用Reactive模式的
+	 * 如nacos的 {@link com.alibaba.cloud.nacos.discovery.reactive.NacosReactiveDiscoveryClient} 
+	 * 可以通过配置spring.cloud.discovery.reactive.enabled=true来开启使用Reactive模式的
 	 */
 	@Configuration(proxyBeanMethods = false)
 	@ConditionalOnProperty(value = "spring.cloud.discovery.reactive.enabled", matchIfMissing = true)

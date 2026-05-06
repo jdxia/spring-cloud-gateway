@@ -36,6 +36,10 @@ import static org.springframework.util.StringUtils.tokenizeToStringArray;
 
 /**
  * @author Spencer Gibb
+ *
+ * RouteDefinition ≠ Route
+ * - RouteDefinition：DTO 层，路由的 配置态（id、uri 字符串、PredicateDefinition 列表）—— 可序列化，可以从 Nacos/Redis/JSON 文件加载
+ * - Route：运行时层，路由的 激活态（已组装好的 Predicate<ServerWebExchange> 函数对象、GatewayFilter 链）—— 不可序列化，只能在内存里
  */
 @Validated
 public class RouteDefinition {
@@ -46,7 +50,7 @@ public class RouteDefinition {
 	/**
 	 * 匹配器的定义
 	 *
-	 * 配置的断言信息
+	 * 配置的断言信息, 至少一个谓词
 	 */
 	@NotEmpty
 	@Valid

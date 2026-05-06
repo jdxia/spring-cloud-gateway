@@ -22,6 +22,7 @@ import org.springframework.cloud.client.discovery.event.HeartbeatMonitor;
 import org.springframework.cloud.client.discovery.event.InstanceRegisteredEvent;
 import org.springframework.cloud.client.discovery.event.ParentHeartbeatEvent;
 import org.springframework.cloud.context.scope.refresh.RefreshScopeRefreshedEvent;
+import org.springframework.cloud.gateway.discovery.DiscoveryClientRouteDefinitionLocator;
 import org.springframework.cloud.gateway.event.RefreshRoutesEvent;
 import org.springframework.context.ApplicationEvent;
 import org.springframework.context.ApplicationEventPublisher;
@@ -33,9 +34,11 @@ import org.springframework.util.Assert;
 // TODO: make abstract class in commons?
 public class RouteRefreshListener implements ApplicationListener<ApplicationEvent> {
 	/**
-	 * 在SCG中有RouteRefreshListener用来监听刷新的事件，比如Nacos使用NacosWatch来发送HeartbeatEvent。
+	 * 在SCG中有RouteRefreshListener用来监听刷新的事件，比如Nacos使用NacosWatch来发送 {@link HeartbeatEvent}
 	 *
-	 * RouteRefreshListener中监听到HeartbeatEvent后会发送RefreshRoutesEvent，CachingRouteLocator中监听了该事件，而后触发DiscoveryClientRouteDefinitionLocator#getRouteDefinition从注册中心重新获取一次服务信息，生成RouteDefinition
+	 * RouteRefreshListener 中监听到HeartbeatEvent后会发送RefreshRoutesEvent，
+	 * CachingRouteLocator 中监听了该事件 {@link CachingRouteLocator#onApplicationEvent(RefreshRoutesEvent)} ，
+	 * 而后触发 {@link DiscoveryClientRouteDefinitionLocator#getRouteDefinitions()} 从注册中心重新获取一次服务信息，生成 RouteDefinition
 	 */
 
 	private final ApplicationEventPublisher publisher;

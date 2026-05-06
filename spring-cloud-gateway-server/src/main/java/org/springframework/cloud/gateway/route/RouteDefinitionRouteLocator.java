@@ -49,6 +49,8 @@ import org.springframework.web.server.ServerWebExchange;
  * {@link RouteLocator} that loads routes from a {@link RouteDefinitionLocator}.
  *
  * @author Spencer Gibb
+ *
+ *  RouteDefinition → Route 的转换
  */
 public class RouteDefinitionRouteLocator implements RouteLocator {
 
@@ -152,6 +154,9 @@ public class RouteDefinitionRouteLocator implements RouteLocator {
 		});
 	}
 
+	/**
+	 * RouteDefinition → Route 的转换
+	 */
 	private Route convertToRoute(RouteDefinition routeDefinition) {
 		/**
 		 * 重点

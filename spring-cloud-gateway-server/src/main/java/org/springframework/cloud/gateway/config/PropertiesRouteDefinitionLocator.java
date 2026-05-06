@@ -38,7 +38,9 @@ public class PropertiesRouteDefinitionLocator implements RouteDefinitionLocator 
 	@Override
 	public Flux<RouteDefinition> getRouteDefinitions() {
 		// 从 properties里面得到路由的定义
-		return Flux.fromIterable(this.properties.getRoutes()).filter(RouteDefinition::isEnabled);
+		return Flux.fromIterable(this.properties.getRoutes())
+				// enabled=false 在这里被过滤
+				.filter(RouteDefinition::isEnabled);
 	}
 
 }

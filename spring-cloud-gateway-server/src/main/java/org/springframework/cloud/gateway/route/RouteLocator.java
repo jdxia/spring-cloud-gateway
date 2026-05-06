@@ -23,6 +23,9 @@ import reactor.core.publisher.Flux;
 import org.springframework.util.CollectionUtils;
 
 /**
+ *
+ * 根据RouteDefinition对象生成具体的Route对象，这些Route对象可以直接用于路由请求
+ *
  * @author Spencer Gibb
  */
 // TODO: rename to Routes?

@@ -52,9 +52,11 @@ public class Route implements Ordered {
 	// 用于多个 Route 之间的排序，数值越小排序越靠前，匹配优先级越高
 	private final int order;
 
+	// 已组装好的函数对象
 	// 谓语，表示匹配该 Route 的前置条件，即满足相应的条件才会被路由到目的地 uri
 	private final AsyncPredicate<ServerWebExchange> predicate;
 
+	// 已组装好的过滤器对象
 	// 过滤器用于处理切面逻辑，如路由转发前修改请求头等
 	private final List<GatewayFilter> gatewayFilters;
 
