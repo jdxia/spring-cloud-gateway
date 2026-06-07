@@ -25,6 +25,7 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.springframework.cloud.gateway.actuate.AbstractGatewayControllerEndpoint;
 import org.springframework.cloud.gateway.config.GatewayAutoConfiguration;
+import org.springframework.cloud.gateway.filter.cors.CorsGatewayFilterApplicationListener;
 import reactor.cache.CacheFlux;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -99,6 +100,8 @@ public class CachingRouteLocator
 	/**
 	 * /actuator/gateway/refresh?metadata=serviceId=user-service
 	 * 管理端口那有个 {@link AbstractGatewayControllerEndpoint#refresh(List)}
+	 *
+	 * 这边也监听 RefreshRoutesEvent
 	 */
 	@Override
 	public void onApplicationEvent(RefreshRoutesEvent event) {
@@ -119,7 +122,11 @@ public class CachingRouteLocator
 			else {
 				// 全局刷新（没有 metadata 参数）
 				final Mono<List<Route>> allRoutes = fetch().collect(Collectors.toList());
-				// 更新缓存并发送 RefreshRoutesResultEvent 这个事件, 方法是 synchronized 的
+				/**
+				 * 更新缓存并发送 RefreshRoutesResultEvent 这个事件, 方法是 synchronized 的
+				 *
+				 * 「路由缓存刷新完成」结果事件, {@link CorsGatewayFilterApplicationListener} 接收
+				 */
 				allRoutes.subscribe(list -> updateCache(Flux.fromIterable(list)), this::handleRefreshError);
 			}
 		}

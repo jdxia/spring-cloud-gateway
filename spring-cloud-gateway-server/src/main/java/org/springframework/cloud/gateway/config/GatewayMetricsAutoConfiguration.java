@@ -64,6 +64,9 @@ import org.springframework.web.reactive.DispatcherHandler;
 		ObservationAutoConfiguration.class })
 @ConditionalOnClass({ DispatcherHandler.class, MeterRegistry.class, MetricsAutoConfiguration.class })
 public class GatewayMetricsAutoConfiguration {
+	/**
+	 * 作用初始化 {@link GatewayMetricsFilter}
+	 */
 
 	@Bean
 	public GatewayHttpTagsProvider gatewayHttpTagsProvider() {

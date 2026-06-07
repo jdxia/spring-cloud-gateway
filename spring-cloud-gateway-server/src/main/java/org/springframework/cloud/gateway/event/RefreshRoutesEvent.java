@@ -29,6 +29,8 @@ import org.springframework.util.CollectionUtils;
  */
 public class RefreshRoutesEvent extends ApplicationEvent {
 
+	// 用来表示「只刷新匹配特定 metadata 的那批路由」
+	// 比如只刷新 serviceId=user-service 的路由，不动其他路由
 	private final Map<String, Object> metadata;
 
 	/**

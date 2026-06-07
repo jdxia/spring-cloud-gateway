@@ -27,6 +27,7 @@ spring:
   config:
     import: optional:nacos:${spring.application.name}
   cloud:
+# 这个注释掉就没有 动态路由了, {@link org.springframework.cloud.gateway.discovery.GatewayDiscoveryClientAutoConfiguration.ReactiveDiscoveryClientRouteDefinitionLocatorConfiguration}
 #    discovery:
 #      reactive:
 #        enabled: true

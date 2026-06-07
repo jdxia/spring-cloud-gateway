@@ -1,13 +1,21 @@
+# 校验依赖包
 org.springframework.cloud.gateway.config.GatewayClassPathWarningAutoConfiguration
-# 配置文件是在这里
+# 配置文件是在这里, 核心配置
 org.springframework.cloud.gateway.config.GatewayAutoConfiguration
+# 断路器配置
 org.springframework.cloud.gateway.config.GatewayResilience4JCircuitBreakerAutoConfiguration
+# 无LoadBalancer配置
 org.springframework.cloud.gateway.config.GatewayNoLoadBalancerClientAutoConfiguration
 org.springframework.cloud.gateway.config.GatewayFunctionAutoConfiguration
+# 监控指标配置
 org.springframework.cloud.gateway.config.GatewayMetricsAutoConfiguration
+# 流控配置
 org.springframework.cloud.gateway.config.GatewayRedisAutoConfiguration
 org.springframework.cloud.gateway.config.GatewayStreamAutoConfiguration
+# 网关发现
 org.springframework.cloud.gateway.discovery.GatewayDiscoveryClientAutoConfiguration
+# 跨域配置
 org.springframework.cloud.gateway.config.SimpleUrlHandlerMappingGlobalCorsAutoConfiguration
+# 负载配置
 org.springframework.cloud.gateway.config.GatewayReactiveLoadBalancerClientAutoConfiguration
 org.springframework.cloud.gateway.config.LocalResponseCacheAutoConfiguration

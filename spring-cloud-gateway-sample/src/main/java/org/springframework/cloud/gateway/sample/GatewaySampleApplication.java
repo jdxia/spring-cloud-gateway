@@ -40,6 +40,7 @@ import static org.springframework.web.reactive.function.server.RouterFunctions.r
 @ComponentScan("org.springframework.cloud.gateway.sample")
 @Slf4j
 public class GatewaySampleApplication {
+
 	/**
 	 * 源码先看这几个文件
 	 * 1. 自动装配的 spring-cloud-gateway-server/src/main/resources/META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports
