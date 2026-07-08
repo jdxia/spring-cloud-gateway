@@ -70,8 +70,9 @@ spring:
 #          default: /actuator/health/readiness
           user-demo: /api/user-demo/actuator/health/readiness  # 后续这个需要动态生成
       cache:
+        # 如果项目里引入了 Caffeine，Spring Cloud LoadBalancer 会优先使用 Caffeine 缓存实现。官方文档说明，设置 spring.cloud.loadbalancer.cache.caffeine.spec 后，会覆盖普通的 ttl 和 capacity 配置
         enabled: false  # nacos 那边 Spring Cloud Alibaba 的 NacosLoadBalancerClientConfiguration 源码里明确写了：ServiceInstanceListSupplier don't use cache，原因是 LoadBalancerCache 会导致 Nacos 实例权重等信息不能立即生效，而 Nacos 自己已经支持缓存
-        ttl: 10s
+        ttl: 3s
         capacity: 2048  # 默认是256 超过了就进行驱逐
       retry:
         enabled: true
