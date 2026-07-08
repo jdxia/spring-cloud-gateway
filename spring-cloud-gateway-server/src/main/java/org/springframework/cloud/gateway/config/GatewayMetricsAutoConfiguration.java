@@ -59,11 +59,37 @@ import org.springframework.web.reactive.DispatcherHandler;
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnProperty(name = GatewayProperties.PREFIX + ".enabled", matchIfMissing = true)
 @EnableConfigurationProperties(GatewayMetricsProperties.class)
+// 在 WebFlux 的 HttpHandler 装配之前执行
 @AutoConfigureBefore(HttpHandlerAutoConfiguration.class)
+// 在 Micrometer 的 MeterRegistry、ObservationRegistry 装配之后
 @AutoConfigureAfter({ MetricsAutoConfiguration.class, CompositeMeterRegistryAutoConfiguration.class,
 		ObservationAutoConfiguration.class })
 @ConditionalOnClass({ DispatcherHandler.class, MeterRegistry.class, MetricsAutoConfiguration.class })
 public class GatewayMetricsAutoConfiguration {
+
+	/**
+	 *  Spring Boot 启动
+	 *    │  读 META-INF/spring/...AutoConfiguration.imports (登记了 GatewayMetricsAutoConfiguration)
+	 *    ▼
+	 *  GatewayMetricsAutoConfiguration  ←判定 6 个注解：@ConditionalOnClass(有 webflux+micrometer+actuator?)
+	 *    │                                            @ConditionalOnProperty(...enabled, 默认开)
+	 *    │                                            @AutoConfigureAfter(MeterRegistry 已就绪?)
+	 *    │  装配出 ▼
+	 *    ├─ GatewayHttpTagsProvider ──┐
+	 *    ├─ GatewayRouteTagsProvider ─┤  这些 TagsProvider 被
+	 *    ├─ PropertiesTagsProvider ───┤  收集成 List<GatewayTagsProvider>
+	 *    ├─ (GatewayPathTagsProvider)─┘  注入给 ▼
+	 *    ├─ GatewayMetricsFilter (GlobalFilter, order=0) ★传统 Metrics 链路核心
+	 *    ├─ RouteDefinitionMetrics (监听路由刷新 → gauge spring.cloud.gateway.routes.count)
+	 *    └─ ObservabilityConfiguration（若有 ObservationRegistry）★Observation 链路
+	 *         ├─ ObservedRequestHttpHeadersFilter / ObservedResponseHttpHeadersFilter
+	 *         ├─ ObservationClosingWebExceptionHandler
+	 *         └─ (有 Tracer 时) GatewayPropagatingSenderTracingObservationHandler
+	 *
+	 *
+	 *
+	 */
+
 	/**
 	 * 作用初始化 {@link GatewayMetricsFilter}
 	 */
@@ -96,6 +122,14 @@ public class GatewayMetricsAutoConfiguration {
 	@ConditionalOnProperty(name = GatewayProperties.PREFIX + ".metrics.enabled", matchIfMissing = true)
 	// don't use @ConditionalOnEnabledGlobalFilter as the above property may
 	// encompass more than just the filter
+	/**
+	 * {@link GatewayTagsProvider} 标签提供器
+	 * 内置了4个
+	 * {@link GatewayHttpTagsProvider} ,{@link GatewayRouteTagsProvider} , {@link GatewayPathTagsProvider}, {@link PropertiesTagsProvider}
+	 * 扩展方式（官方推荐路径）：你只要往容器里再扔一个 @Bean 实现 GatewayTagsProvider，它就会被自动收集进来
+	 * 这里有个高基数陷阱（生产事故高发区）：tenant 如果取值是无限的（比如 userId、traceId、完整 URL），会让 Micrometer / Prometheus 的时间序列（time series）爆炸，内存和存储被打穿。
+	 * Tag 的取值必须是有限低基数集合。X-Tenant-Id 几百个租户 OK；userId 几百万就是灾难。
+	 */
 	public GatewayMetricsFilter gatewayMetricFilter(MeterRegistry meterRegistry,
 			List<GatewayTagsProvider> tagsProviders, GatewayMetricsProperties properties) {
 		return new GatewayMetricsFilter(meterRegistry, tagsProviders, properties.getPrefix());

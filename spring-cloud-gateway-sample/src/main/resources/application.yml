@@ -70,28 +70,67 @@ spring:
 #          default: /actuator/health/readiness
           user-demo: /api/user-demo/actuator/health/readiness  # 后续这个需要动态生成
       cache:
-        enabled: true
+        enabled: false  # nacos 那边 Spring Cloud Alibaba 的 NacosLoadBalancerClientConfiguration 源码里明确写了：ServiceInstanceListSupplier don't use cache，原因是 LoadBalancerCache 会导致 Nacos 实例权重等信息不能立即生效，而 Nacos 自己已经支持缓存
         ttl: 10s
         capacity: 2048  # 默认是256 超过了就进行驱逐
+      retry:
+        enabled: true
+        retryOnAllOperations: false # 是否对所有 HTTP 方法都允许重试。默认 false，核心含义是：默认只重试 GET 这类幂等请求
+        #  是否所有异常都重试。默认 false，表示只重试 retryableExceptions 里面配置的异常。官方配置项也说明了该属性默认不开启
+        # 默认可重试异常大致是：
+        # IOException.class
+        #TimeoutException.class
+        #RetryableStatusCodeException.class
+        #org.springframework.cloud.client.loadbalancer.reactive.RetryableStatusCodeException.class
+        retryOnAllExceptions: false
+        max-retries-on-next-service-instance: 1 # 最多换几个新实例重试。默认是 1，表示：第一次请求实例 A 失败后，可以再选择一个实例 B 重试一次。官方默认值也是 1。
+        maxRetriesOnSameServiceInstance: 0 # 在同一个服务实例上最多重试几次。默认是 0，表示：某个实例失败后，不在这个实例上再试
+        # 哪些 HTTP 状态码可以触发重试。默认是空集合，表示默认不因为 HTTP 状态码自动重试
+        retryable-status-codes:
+          - 502 # Bad Gateway
+          - 503 # Service Unavailable
+          - 504 # Gateway Timeout
+        backoff:
+          enabled: true
+          min-backoff: 50ms  # 第一次重试前至少等多久
+          max-backoff: 500ms  # 退避最大不超过多久
+          jitter: 0.5  # 抖动比例，避免所有请求同一时间重试
     gateway.server.webflux:
       enabled: true
-#      discovery:
+      # 默认下面2个是true, 但是这个在高并发下比较影响性能
+      # 是在 org.springframework.cloud.gateway.config.GatewayMetricsAutoConfiguration 这个类下面的
+      metrics:
+        enabled: true
+      observability:
+        enabled: true
+      #      discovery:
 #        locator:
 #          # 启用服务发现, 并把服务名转小写
 #          enabled: true
 #          lowerCaseServiceId: true # 忽略服务名的大小写
       httpclient:
+        # 这个不要开, 默认 compression 就是false
+        # 网关的 HttpClient 会主动向后端声明 Accept-Encoding 并自动解压后端的响应。后果是：
+        #- 同一份数据经历：后端压缩 → 网关解压 → 网关再压缩，三次 CPU 运算，两次是纯浪费，全落在网关上，开这个等于把 CPU 上去；
+        #- SCG 历史上在这条路径上有多个 header 处理 bug（解压了 body 但 Content-Encoding/Content-Length 没清理干净），客户端会报 ERR_CONTENT_DECODING_FAILED 或拿到声明 gzip 实际是明文的响应。
+        # 结论：这个配置永远别开，保持现状。
+        compression: false
         connect-timeout: 3000          # 连接超时，毫秒
-        response-timeout: 10s          # 响应超时
+        response-timeout: 10s          # 响应超时,  发出请求到收到响应的整体超时
         pool:
-          type: fixed                  # 固定连接池（生产推荐）
-          leasing-strategy: lifo        # 后进先出, 用热连接
-          max-connections: 200         # 最大连接数, 每个ip:port 200
-          acquire-timeout: 3000        # 获取连接超时
-          max-idle-time: 30s           # 最大空闲时间
-          max-life-time: 60s           # 连接最大存活时间, 会强制杀掉所有连接，包括 WebSocket 连接
-          eviction-interval: 20s       # 定期清理空闲连接
-          metrics: true                # 启用连接池指标
+          type: fixed                  # 固定连接池（生产推荐）, DISABLED 每次请求新建,  FIXED 有上限, ELASTIC 无上限是int最大值
+          # LIFO 后进先出, 用热连接  好处:让闲置连接更快撞到 max-idle-time 被回收,池子能自然缩容;复用的连接 TCP 拥塞窗口大、TLS session 活跃,延迟更低。适合波动流量
+          # FIFO(默认): 先进先出,连接轮流用,负载均匀、所有连接都被保活不容易缩容。适合稳定的持续高流量。
+          leasing-strategy: FIFO
+          max-connections: 200         # 最大连接数, 每个ip:port 200, 只使用与fixed类型
+          acquire-timeout: 3000        # 获取连接超时, 从池里"借"连接的排队超时(池满时排队等多久)
+          max-idle-time: 90s           # 最大空闲时间, 连接空闲超过 90s,下次取用前会被关闭重建。默认 null(永不因空闲关闭)
+          max-life-time: 1800s         # 连接最大存活时间, 会强制杀掉所有连接，包括 WebSocket 连接, 连接从创建起,无论忙闲,存活满多少 就被回收。默认 null(永不)
+          eviction-interval: 30s       # 定期清理空闲连接, 后台起一个定时任务,每 20s 主动扫描并关闭过期(超 idle/life)的连接。默认 Duration.ZERO(关闭), :一般取 max-idle-time 的 1/2 ~ 1/3,保证过期连接最多多活一个间隔
+          # 把连接池指标注册到 Micrometer。默认 false
+          # 开启后能拿到 reactor.netty.connection.provider.total.connections / active.connections / pending.connections / idle.connections 等指标。
+          # pending.connections 持续 > 0 就是连接池不够用的铁证,是调 max-connections 的直接依据。
+          metrics: true
       routeFilterCacheEnabled: false # 路由过滤器缓存, 这个如果要缓存要注意一下共享变量, 所有请求相关的数据都存储在 ServerWebExchange 的 attributes 中
       global-filter: # 全局过滤器, 内置默认的
         reactive-load-balancer-client:

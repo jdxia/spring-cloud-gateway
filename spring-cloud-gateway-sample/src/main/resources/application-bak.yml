@@ -75,6 +75,12 @@ spring:
         capacity: 2048  # 默认是256 超过了就进行驱逐
     gateway.server.webflux:
       enabled: true
+      # 默认下面2个是true, 但是这个在高并发下比较影响性能
+      # 是在 org.springframework.cloud.gateway.config.GatewayMetricsAutoConfiguration 这个类下面的
+      metrics:
+        enabled: true
+      observability:
+        enabled: true
 #      discovery:
 #        locator:
 #          # 启用服务发现, 并把服务名转小写

@@ -40,6 +40,7 @@ public class ObservedResponseHttpHeadersFilter implements HttpHeadersFilter {
 
 	@Override
 	public HttpHeaders filter(HttpHeaders input, ServerWebExchange exchange) {
+		// 在响应阶段从 exchange 取出该 Observation
 		Observation childObservation = exchange.getAttribute(ServerWebExchangeUtils.GATEWAY_OBSERVATION_ATTR);
 		if (childObservation == null) {
 			return input;
@@ -55,6 +56,7 @@ public class ObservedResponseHttpHeadersFilter implements HttpHeadersFilter {
 			}
 		}
 		childObservation.stop();
+		// 打标 gateway.observation.stopped=true
 		exchange.getAttributes().put(OBSERVATION_STOPPED, "true");
 		return input;
 	}

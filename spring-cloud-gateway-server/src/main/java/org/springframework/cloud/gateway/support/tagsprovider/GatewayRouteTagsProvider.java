@@ -25,6 +25,8 @@ import static org.springframework.cloud.gateway.support.ServerWebExchangeUtils.G
 
 /**
  * @author Ingyu Hwang
+ *
+ * 路由维度
  */
 public class GatewayRouteTagsProvider implements GatewayTagsProvider {
 

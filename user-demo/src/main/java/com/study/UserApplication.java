@@ -37,6 +37,7 @@ public class UserApplication {
 	@Bean
 	public RouterFunction<ServerResponse> testOnline() {
 		// http://127.0.0.1:8890/api/user-demo/online
+		// http://127.0.0.1:8892/api/user-demo/online
 		return route()
 				.GET("/online", request -> {
 					nacosManualService.online();

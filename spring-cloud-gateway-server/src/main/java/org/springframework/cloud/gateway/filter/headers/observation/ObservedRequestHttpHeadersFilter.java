@@ -76,6 +76,12 @@ public class ObservedRequestHttpHeadersFilter implements HttpHeadersFilter {
 			log.debug("Client observation  " + childObservation + " created for the request. New headers are "
 					+ newHeaders);
 		}
+
+		/**
+		 * 在过滤请求头时开启一个 Observation（名字 http.client.requests），放进 GATEWAY_OBSERVATION_ATTR
+		 *
+		 *
+		 */
 		exchange.getAttributes().put(ServerWebExchangeUtils.GATEWAY_OBSERVATION_ATTR, childObservation);
 		return newHeaders;
 	}
