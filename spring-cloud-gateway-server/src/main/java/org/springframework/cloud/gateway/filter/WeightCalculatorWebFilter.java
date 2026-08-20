@@ -30,6 +30,7 @@ import java.util.function.Supplier;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.springframework.cloud.gateway.handler.predicate.WeightRoutePredicateFactory;
 import reactor.core.publisher.Mono;
 
 import org.springframework.beans.factory.ObjectProvider;
@@ -56,7 +57,22 @@ import static org.springframework.cloud.gateway.support.ServerWebExchangeUtils.W
  * @author Spencer Gibb
  * @author Alexey Nakidkin
  *
+ * HTTP 请求
+ *   -> WebFilter 链
+ *      -> WeightCalculatorWebFilter       ← 先按组抽签，选出 routeId
+ *   -> DispatcherHandler
+ *      -> RoutePredicateHandlerMapping
+ *         -> 逐个 Route 执行 Predicate
+ *            -> Path / Host / Method ...
+ *            -> WeightRoutePredicateFactory  ← 判断当前 Route 是否被抽中
+ *         -> 得到最终 Route
+ *   -> FilteringWebHandler
+ *   -> NettyRoutingFilter / ReactiveLoadBalancerClientFilter
+ *   -> 下游服务
+ *
+ *
  * 这是一个 WebFilter , 先走 WebFilter 再走 dispatch
+ *
  */
 public class WeightCalculatorWebFilter implements WebFilter, Ordered, SmartApplicationListener {
 
@@ -87,8 +103,18 @@ public class WeightCalculatorWebFilter implements WebFilter, Ordered, SmartAppli
 
 	/* for testing */
 	static Map<String, String> getWeights(ServerWebExchange exchange) {
+		// getWeights 会从当前请求 attributes 中获取
 		Map<String, String> weights = exchange.getAttribute(WEIGHT_ATTR);
 
+		/**
+		 *  如果不存在，就创建 ConcurrentHashMap：
+		 *
+		 * 这个 Map：
+		 * - 只属于当前请求；
+		 * - 不会在不同请求之间共享；
+		 * - key 是 group；
+		 * - value 是当前请求在该 group 中选出的 routeId
+		 */
 		if (weights == null) {
 			weights = new ConcurrentHashMap<>();
 			exchange.getAttributes().put(WEIGHT_ATTR, weights);
@@ -140,6 +166,16 @@ public class WeightCalculatorWebFilter implements WebFilter, Ordered, SmartAppli
 
 	@Override
 	public void onApplicationEvent(ApplicationEvent event) {
+		/**
+		 * 为什么收集事件?
+		 *
+		 * 因为路由会刷新, RouteDefinitionRouteLocator 在绑定 predicate 配置时，同时掌握：
+		 * - 当前 RouteDefinition 的 ID；
+		 * - 当前 predicate 的参数。
+		 * 所以他会发布事件
+		 */
+
+
 		// 匹配器参数的事件, 可能有多次
 		if (event instanceof PredicateArgsEvent) {
 			// 监听到 RouteDefinitionRouteLocator 发布的事件
@@ -237,13 +273,14 @@ public class WeightCalculatorWebFilter implements WebFilter, Ordered, SmartAppli
 			config.normalizedWeights.put(routeId, nomalizedWeight);
 
 			// recalculate rangeIndexes
+			// 建立索引到 Route 的映射
 			config.rangeIndexes.put(index.getAndIncrement(), routeId);
 		}
 
 		// TODO: calculate ranges
 		config.ranges.clear();
 
-		//放入0号位置数0.0
+		//放入0号位置数0.0, 起始点
 		config.ranges.add(0.0);
 
 		List<Double> values = new ArrayList<>(config.normalizedWeights.values());
@@ -282,8 +319,14 @@ public class WeightCalculatorWebFilter implements WebFilter, Ordered, SmartAppli
 
 	@Override
 	public Mono<Void> filter(ServerWebExchange exchange, WebFilterChain chain) {
+		// 取得当前请求的权重结果 Map
 		Map<String, String> weights = getWeights(exchange);
 
+		/**
+		 * 遍历所有 group
+		 * 这里不是只算“当前 Path 可能使用的 group”，而是每个请求都计算当前 Gateway 进程中所有权重 group。
+		 * 如果只有十几个灰度组，问题不大；如果动态生成几千、几万个 group，每个请求都遍历所有 group，会产生明显 CPU 消耗。
+		 */
 		for (String group : groupWeights.keySet()) {
 			//获取到当前分组的所有路由及权重信息
 			GroupWeightConfig config = groupWeights.get(group);
@@ -297,7 +340,7 @@ public class WeightCalculatorWebFilter implements WebFilter, Ordered, SmartAppli
 
 			// Usually, multiple threads accessing the same random object will have some
 			// performance problems, so we can use ThreadLocalRandom by default
-			//生成随机数
+			// 每个group 生成随机数, 生成一个 [0, 1) 随机数
 			double r = randomFunction.apply(exchange);
 
 			//获取到当前分组的所有路由的权重范围
@@ -309,9 +352,11 @@ public class WeightCalculatorWebFilter implements WebFilter, Ordered, SmartAppli
 
 			// 看落在那个区间, 走那个 routeId
 			for (int i = 0; i < ranges.size() - 1; i++) {
-				//如果生成的随机数大于等于当前的元素，并且小于下一元素，说明属于当前路由，则获取到路由ID放入weights中返回
-				//WeightRoutePredicateFactory只需要判断weights中是否有当前路由的group，
-				//如果有，则进一步判断当前路由ID是否为这里计算出来的路由id即可
+				/**
+				 * 如果生成的随机数大于等于当前的元素，并且小于下一元素，说明属于当前路由，则获取到路由ID放入weights中返回
+				 * WeightRoutePredicateFactory只需要判断weights中是否有当前路由的group，
+				 * 如果有，则进一步判断当前路由ID是否为这里计算出来的路由id即可
+				 */
 				if (r >= ranges.get(i) && r < ranges.get(i + 1)) {
 					String routeId = config.rangeIndexes.get(i);
 					weights.put(group, routeId);
@@ -324,6 +369,10 @@ public class WeightCalculatorWebFilter implements WebFilter, Ordered, SmartAppli
 			log.trace("Weights attr: " + weights);
 		}
 
+		/**
+		 *  此时还没有选中最终 Gateway Route，只是把每个 group 的抽签结果放进当前请求。
+		 *  {@link WeightRoutePredicateFactory#apply(WeightConfig)}
+		 */
 		return chain.filter(exchange);
 	}
 

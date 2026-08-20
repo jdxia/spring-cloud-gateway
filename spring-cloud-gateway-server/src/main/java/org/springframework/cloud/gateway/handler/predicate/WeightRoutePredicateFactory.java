@@ -45,6 +45,9 @@ public class WeightRoutePredicateFactory extends AbstractRoutePredicateFactory<W
 	/**
 	 * 这个要和 {@link WeightCalculatorWebFilter} 一起使用
 	 *
+	 * 他只知道 当前请求, 当前 Route, 当前 Route 的 weight
+	 *
+	 * 但是不知道 同组一共有多少 Route？其他 Route 的权重是多少？总权重是多少？本次请求最终应该选择谁？ 这些信息  {@link WeightCalculatorWebFilter} 知道
 	 */
 
 	/**
@@ -108,10 +111,12 @@ public class WeightRoutePredicateFactory extends AbstractRoutePredicateFactory<W
 				/**
 				 * 获取到所有的权重信息，key：group ，value：路由ID
 				 * WEIGHT_ATTR 由 {@link WeightCalculatorWebFilter} 放入
+				 *
+				 * 读取当前请求预先计算好的结果
 				 */
 				Map<String, String> weights = exchange.getAttributeOrDefault(WEIGHT_ATTR, Collections.emptyMap());
 
-				// 获取 routeId
+				// 获取 routeId, 当前正在尝试匹配的 Route ID
 				String routeId = exchange.getAttribute(GATEWAY_PREDICATE_ROUTE_ATTR);
 
 				// all calculations and comparison against random num happened in

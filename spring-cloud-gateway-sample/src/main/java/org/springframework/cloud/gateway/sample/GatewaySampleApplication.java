@@ -42,6 +42,20 @@ import static org.springframework.web.reactive.function.server.RouterFunctions.r
 public class GatewaySampleApplication {
 
 	/**
+	 * 这是分组的逻辑
+	 * HTTP 请求
+	 *   -> WebFilter 链
+	 *      -> WeightCalculatorWebFilter       ← 先按组抽签，选出 routeId
+	 *   -> DispatcherHandler
+	 *      -> RoutePredicateHandlerMapping
+	 *         -> 逐个 Route 执行 Predicate
+	 *            -> Path / Host / Method ...
+	 *            -> WeightRoutePredicateFactory  ← 判断当前 Route 是否被抽中
+	 *         -> 得到最终 Route
+	 *   -> FilteringWebHandler
+	 *   -> NettyRoutingFilter / ReactiveLoadBalancerClientFilter
+	 *   -> 下游服务
+	 *
 	 * Gateway 处理一次请求至少要拆成三步：
 	 * 1. 匹配路由：这个请求应该命中哪个 Route。
 	 * 2. 生成目标地址：命中 Route 后，到底应该把请求发到哪个 scheme/host/port/path/query。
