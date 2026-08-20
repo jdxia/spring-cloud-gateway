@@ -42,6 +42,13 @@ import static org.springframework.web.reactive.function.server.RouterFunctions.r
 public class GatewaySampleApplication {
 
 	/**
+	 * Gateway 处理一次请求至少要拆成三步：
+	 * 1. 匹配路由：这个请求应该命中哪个 Route。
+	 * 2. 生成目标地址：命中 Route 后，到底应该把请求发到哪个 scheme/host/port/path/query。
+	 * 3. 真正转发：按目标地址的 scheme 交给 HTTP、WebSocket、forward、lb、function 等不同过滤器处理。
+	 * RouteToRequestUrlFilter 处在第 2 步。
+	 * 上游 RoutePredicateHandlerMapping 在匹配成功后把 Route 放进 GATEWAY_ROUTE_ATTR
+	 *
 	 * 源码先看这几个文件
 	 * 1. 自动装配的 spring-cloud-gateway-server/src/main/resources/META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports
 	 * 2. 其他的一些 spring-cloud-gateway-server/src/main/resources/META-INF/spring.factories
@@ -98,11 +105,11 @@ public class GatewaySampleApplication {
 
 
 	/**
-	 * 注册中心自动路由需要看
-	 * {@link GatewayDiscoveryClientAutoConfiguration}
-	 * 还有
-	 * {@link DiscoveryClientRouteDefinitionLocator}
-	 */
+     * 注册中心自动路由需要看
+     * {@link GatewayDiscoveryClientAutoConfiguration}
+     * 还有
+     * {@link DiscoveryClientRouteDefinitionLocator}
+     */
 
 	public static void main(String[] args) {
 		System.setProperty("nacos.logging.default.config.enabled", "false");

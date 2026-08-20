@@ -47,6 +47,11 @@ import static org.springframework.cloud.gateway.support.ServerWebExchangeUtils.c
  *   合并后:   lb://user-service/api/user/123?name=test
  *            ↑scheme/host 来自路由   ↑path/query 来自请求
  *
+ *
+ * 它通常在普通 route filter 之后、真正 routing filter 之前执行。
+ * 配置里的 route filter 如果没实现 Ordered，会被包装成 OrderedGatewayFilter(gatewayFilter, i + 1)，一般是 1、2、3...，会早于 10000
+ * 它必须晚于大多数改 path 的 route filter，又必须早于 ReactiveLoadBalancerClientFilter、NettyRoutingFilter、WebsocketRoutingFilter 等真正发送请求的 filter。
+ *
  */
 public class RouteToRequestUrlFilter implements GlobalFilter, Ordered {
 
@@ -97,7 +102,11 @@ public class RouteToRequestUrlFilter implements GlobalFilter, Ordered {
 		//获取Route的uri
 		URI routeUri = route.getUri();
 
-		//判断是否为其他类型的协议 如：lb，则会将lb去掉
+		/**
+		 * 判断是否为其他类型的协议 如：lb，则会将lb去掉
+		 * 外层scheme:内层scheme://host
+		 * lb:http://myhost
+		 */
 		if (hasAnotherScheme(routeUri)) {
 			// this is a special url, save scheme to special attribute
 			// replace routeUri with schemeSpecificPart
@@ -126,7 +135,7 @@ public class RouteToRequestUrlFilter implements GlobalFilter, Ordered {
 			.toUri();
 
 		/**
-		 * 最终转发的目标 URL, 存储的值类型：URI, mergedUrl 类似这样 lb://user-demo/api/user-demo/test
+		 * 最终转发的目标 URL, 存储的值类型：URI, mergedUrl 类似这样 http://user-demo/api/user-demo/test
 		 * {@link NettyRoutingFilter#filter(ServerWebExchange, GatewayFilterChain)} 会取这个
 		 */
 		exchange.getAttributes().put(GATEWAY_REQUEST_URL_ATTR, mergedUrl);
