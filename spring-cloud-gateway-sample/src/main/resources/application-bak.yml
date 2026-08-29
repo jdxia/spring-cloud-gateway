@@ -7,6 +7,22 @@ server:
   address: 0.0.0.0
   port: 8899
   shutdown: graceful
+  # Gateway → 客户端, 开启压缩, Gateway 对最终客户端响应进行压缩, 会配置到底层 Reactor Netty HttpServer
+  # 还有另一个是 后端服务 → Gateway    Gateway 主动向后端声明支持压缩，并自动解压后端响应 这是 spring.cloud.gateway.server.webflux.httpclient.compression
+  compression:
+    enabled: true
+    min-response-size: 2KB
+    # JPEG、PNG、ZIP、PDF、视频通常已经压缩，再压缩只浪费 CPU
+    mime-types:
+      - application/json
+      - application/problem+json
+      - application/xml
+      - text/html
+      - text/xml
+      - text/plain
+      - text/css
+      - text/javascript
+      - application/javascript
 
 spring:
   lifecycle:
@@ -36,6 +52,7 @@ spring:
 #      password: ${nacos.password}
       discovery:
 #        watch-delay: 5000
+        register-enabled: false   # 网关不注册到 nacos 上
         watch:
           enabled: true  # 启用服务监听
         serverAddr: ${nacos.address}

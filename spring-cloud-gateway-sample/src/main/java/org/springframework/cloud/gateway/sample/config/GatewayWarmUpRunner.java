@@ -92,7 +92,7 @@ public class GatewayWarmUpRunner implements ApplicationListener<ApplicationStart
 			log.info("[Warmup] Netty HttpClient 预热完成");
 		} catch (Exception ex) {
 			// 预热失败不影响启动
-			log.warn("[Warmup] Netty HttpClient 预热异常，已跳过: {}", ex.getMessage());
+			log.error("[Warmup] Netty HttpClient 预热异常，已跳过: {}", ex.getMessage());
 		}
 	}
 
@@ -146,6 +146,7 @@ public class GatewayWarmUpRunner implements ApplicationListener<ApplicationStart
 
 	/**
 	 * 预热 LoadBalancer 缓存：对每个 lb:// 服务发一次 HTTP 请求，触发实例列表拉取。
+	 * 如果走 nacos, 他的client本来就有缓存, 所以这边来触发下nacos的
 	 */
 	private void warmUpLoadBalancerCache() {
 		List<WarmUpTarget> targets = resolveWarmUpTargets();
@@ -161,7 +162,7 @@ public class GatewayWarmUpRunner implements ApplicationListener<ApplicationStart
 				.flatMap(target ->
 						Flux.range(0, 16).flatMap(i -> warmUp(target)))
 				.then()
-				.timeout(Duration.ofSeconds(30))
+				.timeout(Duration.ofSeconds(20))
 				.onErrorResume(e -> {
 					log.warn("[Warmup] LoadBalancer 预热超时或异常，已跳过", e);
 					return Mono.empty();
