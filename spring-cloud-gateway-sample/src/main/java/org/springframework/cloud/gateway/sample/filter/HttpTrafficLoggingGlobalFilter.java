@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -18,6 +19,8 @@ import org.reactivestreams.Publisher;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.SignalType;
+import reactor.core.scheduler.Scheduler;
+import reactor.core.scheduler.Schedulers;
 
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
@@ -68,6 +71,11 @@ public final class HttpTrafficLoggingGlobalFilter implements GlobalFilter, Order
 			"javascript"
 	);
 
+	/**
+	 * JSON 解析、序列化和日志输出可能阻塞，不能占用 Reactor Netty 事件循环。
+	 */
+	private static final Scheduler ACCESS_LOG_SCHEDULER = Schedulers.boundedElastic();
+
 	private final ObjectMapper objectMapper;
 
 	public HttpTrafficLoggingGlobalFilter(ObjectMapper objectMapper) {
@@ -106,7 +114,7 @@ public final class HttpTrafficLoggingGlobalFilter implements GlobalFilter, Order
 		 * 如果请求在中途取消，日志会明确标记 CANCEL，并输出已观察到的部分数据。
 		 */
 		return chain.filter(decoratedExchange)
-				.doFinally(signalType -> logExchangeSafely(
+				.doFinally(signalType -> scheduleAccessLog(
 						decoratedExchange,
 						originalRequest.getHeaders(),
 						requestBody,
@@ -117,7 +125,7 @@ public final class HttpTrafficLoggingGlobalFilter implements GlobalFilter, Order
 				));
 	}
 
-	private void logExchangeSafely(
+	private void scheduleAccessLog(
 			ServerWebExchange exchange,
 			Map<String, List<String>> requestHeaders,
 			BodyCapture requestBody,
@@ -126,8 +134,42 @@ public final class HttpTrafficLoggingGlobalFilter implements GlobalFilter, Order
 			Instant startTime,
 			long startNanos) {
 
+		Instant endTime = Instant.now();
+		long durationNanos = System.nanoTime() - startNanos;
+
 		try {
-			logExchange(exchange, requestHeaders, requestBody, responseBody, signalType, startTime, startNanos);
+			ACCESS_LOG_SCHEDULER.schedule(() -> logExchangeSafely(
+					exchange,
+					requestHeaders,
+					requestBody,
+					responseBody,
+					signalType,
+					startTime,
+					endTime,
+					durationNanos
+			));
+		}
+		catch (RejectedExecutionException ignored) {
+			/*
+			 * 应用关闭或调度队列不可用时允许丢失旁路日志，不能在事件循环中降级执行，
+			 * 也不能让日志调度失败改变原请求的完成信号。
+			 */
+		}
+	}
+
+	private void logExchangeSafely(
+			ServerWebExchange exchange,
+			Map<String, List<String>> requestHeaders,
+			BodyCapture requestBody,
+			BodyCapture responseBody,
+			SignalType signalType,
+			Instant startTime,
+			Instant endTime,
+			long durationNanos) {
+
+		try {
+			logExchange(exchange, requestHeaders, requestBody, responseBody, signalType, startTime, endTime,
+					durationNanos);
 		}
 		catch (RuntimeException ex) {
 			/*
@@ -193,14 +235,13 @@ public final class HttpTrafficLoggingGlobalFilter implements GlobalFilter, Order
 			BodyCapture responseBody,
 			SignalType signalType,
 			Instant startTime,
-			long startNanos) {
+			Instant endTime,
+			long durationNanos) {
 
 		ServerHttpRequest request = exchange.getRequest();
 		ServerHttpResponse response = exchange.getResponse();
 		HttpStatusCode statusCode = response.getStatusCode();
 		Route route = exchange.getAttribute(ServerWebExchangeUtils.GATEWAY_ROUTE_ATTR);
-		Instant endTime = Instant.now();
-
 		Map<String, Object> accessLog = new LinkedHashMap<>();
 		accessLog.put("requestId", request.getId());
 		accessLog.put("routeId", route == null ? null : route.getId());
@@ -217,7 +258,7 @@ public final class HttpTrafficLoggingGlobalFilter implements GlobalFilter, Order
 		accessLog.put("signal", signalType.name());
 		accessLog.put("startTime", startTime.toString());
 		accessLog.put("endTime", endTime.toString());
-		accessLog.put("durationMs", TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos));
+		accessLog.put("durationMs", TimeUnit.NANOSECONDS.toMillis(durationNanos));
 
 		writeAccessLog(accessLog);
 	}
@@ -256,7 +297,7 @@ public final class HttpTrafficLoggingGlobalFilter implements GlobalFilter, Order
 
 		private final int maxCaptureBytes;
 
-		private final ByteArrayOutputStream captured;
+		private ByteArrayOutputStream captured;
 
 		private long totalBytes;
 
@@ -268,7 +309,6 @@ public final class HttpTrafficLoggingGlobalFilter implements GlobalFilter, Order
 
 		private BodyCapture(int maxCaptureBytes) {
 			this.maxCaptureBytes = maxCaptureBytes;
-			this.captured = new ByteArrayOutputStream(maxCaptureBytes);
 		}
 
 		static BodyCapture forRequest(HttpHeaders headers) {
@@ -304,15 +344,19 @@ public final class HttpTrafficLoggingGlobalFilter implements GlobalFilter, Order
 		void append(DataBuffer dataBuffer) {
 			int readableBytes = dataBuffer.readableByteCount();
 			this.totalBytes += readableBytes;
+			int capturedBytes = capturedBytes();
 
-			if (!isLoggableBody() || this.captured.size() >= this.maxCaptureBytes) {
+			if (!isLoggableBody() || capturedBytes >= this.maxCaptureBytes) {
 				return;
 			}
 
 			int copyLength = Math.min(
 					readableBytes,
-					this.maxCaptureBytes - this.captured.size()
+					this.maxCaptureBytes - capturedBytes
 			);
+			if (copyLength == 0) {
+				return;
+			}
 
 			byte[] bytes = new byte[copyLength];
 			ByteBuffer target = ByteBuffer.wrap(bytes);
@@ -328,6 +372,12 @@ public final class HttpTrafficLoggingGlobalFilter implements GlobalFilter, Order
 					copyLength
 			);
 
+			if (this.captured == null) {
+				/*
+				 * 只有真正需要记录正文时才分配缓冲区，空正文和未放行类型不占用 8KB。
+				 */
+				this.captured = new ByteArrayOutputStream(copyLength);
+			}
 			this.captured.writeBytes(bytes);
 		}
 
@@ -352,12 +402,13 @@ public final class HttpTrafficLoggingGlobalFilter implements GlobalFilter, Order
 						+ ">";
 			}
 
-			String value = this.captured.toString(StandardCharsets.UTF_8);
+			int capturedBytes = capturedBytes();
+			String value = this.captured == null ? "" : this.captured.toString(StandardCharsets.UTF_8);
 			String safeValue = escapeLineBreaks(value);
-			if (this.totalBytes > this.captured.size()) {
+			if (this.totalBytes > capturedBytes) {
 				return safeValue
 						+ "...<truncated captured="
-						+ this.captured.size()
+						+ capturedBytes
 						+ ", total="
 						+ this.totalBytes
 						+ ">";
@@ -373,6 +424,10 @@ public final class HttpTrafficLoggingGlobalFilter implements GlobalFilter, Order
 			catch (JsonProcessingException ignored) {
 				return safeValue;
 			}
+		}
+
+		private int capturedBytes() {
+			return this.captured == null ? 0 : this.captured.size();
 		}
 
 		private boolean isLoggableBody() {
