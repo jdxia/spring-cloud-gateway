@@ -21,7 +21,7 @@ public class MyGlobalFilter implements GlobalFilter {
 		String token = exchange.getRequest().getHeaders().getFirst("token");
 
 
-		log.info("全局过滤器 ===> MyGlobalFilter, path: {}", path);
+		log.info("全局过滤器 ===> MyGlobalFilter, path: {}, token: {}", path, token);
 
 
 		return chain.filter(exchange);

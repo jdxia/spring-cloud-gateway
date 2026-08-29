@@ -16,12 +16,6 @@ server:
     mime-types:
       - application/json
       - application/problem+json
-      - application/xml
-      - text/html
-      - text/xml
-      - text/plain
-      - text/css
-      - text/javascript
       - application/javascript
 
 spring:
@@ -185,7 +179,10 @@ spring:
 
 
 
-#logging:
+logging:
+  level:
+    # 我自定义的类
+    org.springframework.cloud.gateway.sample.filter.HttpTrafficLoggingGlobalFilter: DEBUG
 #  level:
 #    org.springframework.cloud.gateway: TRACE
 #    org.springframework.http.server.reactive: DEBUG
@@ -197,7 +194,7 @@ spring:
 
 
 # 路由都是在这个类 org.springframework.cloud.gateway.actuate.GatewayControllerEndpoint
-# 访问 http://127.0.0.1:8899/actuator/gateway/routes
+# 访问 http://127.0.0.1:8911/actuator/gateway/routes
 
 # GET    /globalfilters   // 返回全局 Filter 列表
 # GET    /routefilters    // 每个路由的 filter
@@ -207,6 +204,8 @@ spring:
 # POST   /routes/{id}     // 创建路由
 # DELETE /routes/{id}     // 删除路由
 management:
+  server:
+    port: 8911
   endpoints:
     web:
       exposure:
