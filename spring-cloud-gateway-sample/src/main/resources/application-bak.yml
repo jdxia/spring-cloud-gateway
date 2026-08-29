@@ -73,6 +73,28 @@ spring:
         enabled: true
         ttl: 10s
         capacity: 2048  # 默认是256 超过了就进行驱逐
+      retry:
+        enabled: false
+        retryOnAllOperations: false # 是否对所有 HTTP 方法都允许重试。默认 false，核心含义是：默认只重试 GET 这类幂等请求
+        #  是否所有异常都重试。默认 false，表示只重试 retryableExceptions 里面配置的异常。官方配置项也说明了该属性默认不开启
+        # 默认可重试异常大致是：
+        # IOException.class
+        #TimeoutException.class
+        #RetryableStatusCodeException.class
+        #org.springframework.cloud.client.loadbalancer.reactive.RetryableStatusCodeException.class
+        retryOnAllExceptions: false
+        max-retries-on-next-service-instance: 1 # 最多换几个新实例重试。默认是 1，表示：第一次请求实例 A 失败后，可以再选择一个实例 B 重试一次。官方默认值也是 1。
+        maxRetriesOnSameServiceInstance: 0 # 在同一个服务实例上最多重试几次。默认是 0，表示：某个实例失败后，不在这个实例上再试
+        # 哪些 HTTP 状态码可以触发重试。默认是空集合，表示默认不因为 HTTP 状态码自动重试
+        retryable-status-codes:
+          - 502 # Bad Gateway
+          - 503 # Service Unavailable
+          - 504 # Gateway Timeout
+        backoff:
+          enabled: true
+          min-backoff: 50ms  # 第一次重试前至少等多久
+          max-backoff: 500ms  # 退避最大不超过多久
+          jitter: 0.5  # 抖动比例，避免所有请求同一时间重试
     gateway.server.webflux:
       enabled: true
       # 默认下面2个是true, 但是这个在高并发下比较影响性能

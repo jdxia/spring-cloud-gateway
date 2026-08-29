@@ -75,7 +75,7 @@ spring:
         ttl: 3s
         capacity: 2048  # 默认是256 超过了就进行驱逐
       retry:
-        enabled: true
+        enabled: false     # 开了好像要改一些东西
         retryOnAllOperations: false # 是否对所有 HTTP 方法都允许重试。默认 false，核心含义是：默认只重试 GET 这类幂等请求
         #  是否所有异常都重试。默认 false，表示只重试 retryableExceptions 里面配置的异常。官方配置项也说明了该属性默认不开启
         # 默认可重试异常大致是：
