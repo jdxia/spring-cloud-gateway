@@ -160,16 +160,6 @@ public class GatewaySampleApplication {
 	}
 
 
-	/**
-     * 支持负载均衡
-     */
-	@Bean
-	public WebClient webLBClient(ReactorLoadBalancerExchangeFilterFunction lb) {
-		return WebClient.builder()
-				.filter(lb)
-				.build();
-	}
-
 	@Bean
 	public RouterFunction<ServerResponse> user() {
 		return route()
