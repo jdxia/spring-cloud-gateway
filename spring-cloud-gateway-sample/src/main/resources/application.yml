@@ -58,6 +58,7 @@ spring:
         heartBeatTimeout: 15000
         # 30s 不上报 -> 剔除实例
         ipDeleteTimeout: 30000
+        # 网关申明自己是什么集群, 优先同集群调度
         cluster-name: DEFAULT
         fail-fast: true # 强依赖nacos失败就不启动
         ephemeral: true
