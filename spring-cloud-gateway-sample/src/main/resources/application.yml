@@ -15,7 +15,6 @@ server:
     # JPEG、PNG、ZIP、PDF、视频通常已经压缩，再压缩只浪费 CPU
     mime-types:
       - application/json
-      - application/problem+json
       - application/javascript
 
 spring:
@@ -85,7 +84,7 @@ spring:
       cache:
         # 如果项目里引入了 Caffeine，Spring Cloud LoadBalancer 会优先使用 Caffeine 缓存实现。官方文档说明，设置 spring.cloud.loadbalancer.cache.caffeine.spec 后，会覆盖普通的 ttl 和 capacity 配置
         enabled: false  # nacos 那边 Spring Cloud Alibaba 的 NacosLoadBalancerClientConfiguration 源码里明确写了：ServiceInstanceListSupplier don't use cache，原因是 LoadBalancerCache 会导致 Nacos 实例权重等信息不能立即生效，而 Nacos 自己已经支持缓存
-        ttl: 3s
+        ttl: 5s
         capacity: 2048  # 默认是256 超过了就进行驱逐
       retry:
         enabled: true     # 开了有一些坑,retry 是想增强，却把一个非 retry 的 bean 需求给"挤"没了, 需要特殊配置
@@ -133,9 +132,9 @@ spring:
         response-timeout: 10s          # 响应超时,  发出请求到收到响应的整体超时
         pool:
           type: fixed                  # 固定连接池（生产推荐）, DISABLED 每次请求新建,  FIXED 有上限, ELASTIC 无上限是int最大值
-          # LIFO 后进先出, 用热连接  好处:让闲置连接更快撞到 max-idle-time 被回收,池子能自然缩容;复用的连接 TCP 拥塞窗口大、TLS session 活跃,延迟更低。适合波动流量
-          # FIFO(默认): 先进先出,连接轮流用,负载均匀、所有连接都被保活不容易缩容。适合稳定的持续高流量。
-          leasing-strategy: FIFO
+          # LIFO 后进先出, 用热连接  好处:让闲置连接更快撞到 max-idle-time 被回收,池子能自然缩容;复用的连接 TCP 拥塞窗口大、TLS session 活跃,延迟更低。适合波动流量, 不常用的旧连接会持续沉在池底
+          # FIFO(默认): 先进先出,连接轮流用,负载均匀、所有连接都被保活不容易缩容。适合稳定的持续高流量。容易增加偶发的连接已失效、首包失败风险
+          leasing-strategy: LIFO
           max-connections: 200         # 最大连接数, 每个ip:port 200, 只使用与fixed类型
           acquire-timeout: 3000        # 获取连接超时, 从池里"借"连接的排队超时(池满时排队等多久)
           max-idle-time: 90s           # 最大空闲时间, 连接空闲超过 90s,下次取用前会被关闭重建。默认 null(永不因空闲关闭)

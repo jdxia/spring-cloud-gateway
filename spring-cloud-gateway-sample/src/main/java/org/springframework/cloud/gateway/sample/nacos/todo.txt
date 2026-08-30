@@ -6,6 +6,8 @@
 	 * 按 Order 顺序执行 ServiceInstanceFilter 链
 	 * 按 serviceId 找 LoadBalancerAlgorithm
 	 * 返回一个 ServiceInstance 给 OpenFeign / RestClient / WebClient 等调用方
+	 *
+	 * 但是这2个都是spring cloud alibaba 里面才有的
 	 */
 
 
