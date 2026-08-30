@@ -66,6 +66,7 @@ spring:
         namespace: ${nacos.namespace}
         file-extension: yaml
         refresh-enabled: true
+    # 注意这边要使用 nacos 的loadbalancer是 NacosLoadBalancerClientConfiguration , 不能用 Ribbon的, 那个是没有权重的
     loadbalancer:
       nacos:
         enabled: true  # 生产要看下有没有这个, 如果有这个就代表跨集群了  A cross-cluster call occurs
