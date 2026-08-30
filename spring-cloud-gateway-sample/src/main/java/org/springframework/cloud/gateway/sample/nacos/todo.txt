@@ -1,0 +1,24 @@
+/**
+	 * 同 cluster 优先 → IP 协议族过滤
+	 * 按 order 过滤
+	 * ServiceInstanceFilter => LoadBalancerAlgorithm
+	 *
+	 * 按 Order 顺序执行 ServiceInstanceFilter 链
+	 * 按 serviceId 找 LoadBalancerAlgorithm
+	 * 返回一个 ServiceInstance 给 OpenFeign / RestClient / WebClient 等调用方
+	 */
+
+
+### 何时需要自定义算法
+
+  只有默认加权随机不能满足需求时才加，例如：
+
+  - 同一个用户、订单、会话希望稳定路由到同一实例：一致性哈希；
+  - 特定下游服务必须使用固定的业务分片；
+  - 已经有可靠、实时的本地负载指标，想选最小负载实例。
+
+  以下情况不建议先自定义算法：
+
+  - 只是灰度、同机房优先、地域优先：这是 Filter 的职责；
+  - 想按 Nacos 权重选：默认算法已支持；
+  - 想做“最少连接”：没有可信实时负载来源时，跨消费者、跨 Pod 的局部计数会产生错误的全局判断。
