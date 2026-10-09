@@ -44,6 +44,8 @@ spring:
 #      username: ${nacos.username}
 #      password: ${nacos.password}
       discovery:
+        # namingAsyncQuerySubscribeService对已订阅服务开启后台补拉，作为服务端推送的补充, 注意nacos那边的压力
+        naming-async-query-subscribe-service: true
 #        watch-delay: 5000
         register-enabled: false   # 网关不注册到 nacos 上
         watch:
